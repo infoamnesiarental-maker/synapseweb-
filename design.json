@@ -1,0 +1,369 @@
+{
+    "designSystem": {
+      "name": "Bombo Electronic Music Platform",
+      "version": "1.0",
+      "description": "Modern, immersive design system for electronic music events and ticketing platform with strong visual identity and blockchain integration"
+    },
+    
+    "colorPalette": {
+      "primary": {
+        "vibrantPurple": "#A855F7",
+        "electricBlue": "#3B82F6",
+        "neonPink": "#EC4899",
+        "description": "Vibrant, saturated colors used for CTAs and highlights"
+      },
+      "secondary": {
+        "teal": "#14B8A6",
+        "cyan": "#06B6D4",
+        "description": "Accent colors for secondary elements and diversity"
+      },
+      "neutral": {
+        "deepBlack": "#000000",
+        "darkGray": "#0F0F0F",
+        "mediumGray": "#1F1F1F",
+        "lightGray": "#A3A3A3",
+        "white": "#FFFFFF",
+        "description": "Dark-themed foundation with high contrast text"
+      },
+      "accents": {
+        "yellow": "#FACC15",
+        "green": "#10B981",
+        "red": "#EF4444",
+        "description": "Used sparingly for status indicators and special highlights"
+      }
+    },
+    
+    "typography": {
+      "fontFamilies": {
+        "primary": "Sans-serif, likely custom or modern geometric typeface",
+        "headings": "Bold, uppercase sans-serif with tight tracking",
+        "body": "Regular sans-serif with good readability",
+        "description": "Modern, clean typography with strong hierarchy"
+      },
+      "typeScale": {
+        "heroHeading": {
+          "size": "48-72px",
+          "weight": "700-900",
+          "lineHeight": "1.1",
+          "letterSpacing": "-0.02em",
+          "usage": "Main hero headlines"
+        },
+        "sectionHeading": {
+          "size": "32-48px",
+          "weight": "700-800",
+          "lineHeight": "1.2",
+          "letterSpacing": "0.02em",
+          "textTransform": "uppercase",
+          "usage": "Section titles like 'EVENTOS'"
+        },
+        "eventTitle": {
+          "size": "18-24px",
+          "weight": "700",
+          "lineHeight": "1.3",
+          "letterSpacing": "0.05em",
+          "textTransform": "uppercase",
+          "usage": "Artist names and event titles"
+        },
+        "body": {
+          "size": "16-18px",
+          "weight": "400-500",
+          "lineHeight": "1.6",
+          "usage": "Descriptive text and paragraphs"
+        },
+        "caption": {
+          "size": "12-14px",
+          "weight": "400-500",
+          "lineHeight": "1.4",
+          "usage": "Event details, dates, small labels"
+        }
+      }
+    },
+    
+    "layoutStructure": {
+      "grid": {
+        "type": "12-column responsive grid",
+        "maxWidth": "1440px",
+        "gutters": "24px",
+        "breakpoints": {
+          "mobile": "320-768px",
+          "tablet": "768-1024px",
+          "desktop": "1024px+"
+        }
+      },
+      "spacing": {
+        "xs": "8px",
+        "sm": "16px",
+        "md": "24px",
+        "lg": "48px",
+        "xl": "72px",
+        "xxl": "120px",
+        "description": "Generous spacing with clear visual breathing room"
+      },
+      "sections": {
+        "hero": {
+          "structure": "Full-width with centered content, immersive background",
+          "height": "80-100vh",
+          "alignment": "center"
+        },
+        "events": {
+          "structure": "Horizontal scrollable carousel with 3 cards visible",
+          "cardLayout": "Equal-width columns with gaps",
+          "navigation": "Arrow controls on sides"
+        },
+        "features": {
+          "structure": "3-column grid on desktop, stacked on mobile",
+          "cardStyle": "Dark containers with phone mockups"
+        }
+      }
+    },
+    
+    "components": {
+      "navigation": {
+        "style": "Horizontal top bar, transparent over hero",
+        "items": "Text links with subtle hover states",
+        "logo": "Left-aligned, clean wordmark",
+        "languageSelector": "Right-aligned, minimal dropdown",
+        "behavior": "Sticky/fixed on scroll"
+      },
+      
+      "buttons": {
+        "primary": {
+          "background": "Gradient or solid vibrant color (purple/blue)",
+          "textColor": "White",
+          "borderRadius": "24-32px (pill-shaped)",
+          "padding": "12-16px 32-48px",
+          "fontSize": "16-18px",
+          "fontWeight": "600",
+          "hover": "Slight scale or glow effect",
+          "icon": "Optional icon on left side"
+        },
+        "secondary": {
+          "background": "Transparent with border",
+          "border": "1px solid white/gray",
+          "textColor": "White",
+          "style": "Same pill-shape as primary"
+        }
+      },
+      
+      "cards": {
+        "eventCard": {
+          "structure": "Vertical card with image top, content bottom",
+          "imageAspectRatio": "3:4 or 4:5 (portrait)",
+          "imageStyle": "Full-bleed with gradient overlays",
+          "contentPadding": "24px",
+          "borderRadius": "16-24px",
+          "shadow": "Subtle elevation",
+          "hover": "Scale transform (1.02-1.05) with smooth transition",
+          "elements": [
+            "Featured image (artist/event visual)",
+            "Event date and time label",
+            "Artist name (large, bold, uppercase)",
+            "Venue/location info",
+            "Supporting artists (smaller text)",
+            "Sponsor logos at bottom"
+          ]
+        },
+        
+        "featureCard": {
+          "structure": "Dark card with image and text",
+          "background": "Solid dark color (#1F1F1F)",
+          "borderRadius": "16px",
+          "padding": "32-48px",
+          "elements": [
+            "Phone mockup image",
+            "Category label (pill-shaped badge)",
+            "Heading",
+            "Description text"
+          ]
+        }
+      },
+      
+      "badges": {
+        "style": "Pill-shaped with solid color backgrounds",
+        "colors": "Vibrant accent colors (pink, purple, blue)",
+        "textColor": "White or black depending on contrast",
+        "padding": "6px 16px",
+        "fontSize": "12-14px",
+        "fontWeight": "600",
+        "usage": "Event tags, category labels, status indicators"
+      },
+      
+      "dividers": {
+        "style": "Horizontal lines, subtle color",
+        "color": "Rgba white with low opacity or dark gray",
+        "thickness": "1-2px",
+        "usage": "Section separators"
+      }
+    },
+    
+    "visualEffects": {
+      "backgrounds": {
+        "hero": {
+          "type": "3D rendered abstract shapes",
+          "style": "Glossy, metallic materials with purple/blue/teal gradients",
+          "motion": "Subtle animation or parallax scroll effect",
+          "overlay": "Dark gradient overlay for text readability"
+        },
+        "sections": {
+          "type": "Solid dark colors (#000, #0F0F0F)",
+          "variation": "Occasional subtle gradients or texture"
+        }
+      },
+      
+      "shadows": {
+        "card": "0 4px 24px rgba(0, 0, 0, 0.4)",
+        "elevated": "0 8px 48px rgba(0, 0, 0, 0.6)",
+        "glow": "0 0 24px rgba(168, 85, 247, 0.3) for accent elements"
+      },
+      
+      "gradients": {
+        "primary": "Linear gradient from purple to blue (45-135deg)",
+        "secondary": "Linear gradient from teal to cyan",
+        "overlay": "Linear gradient from transparent to black (top to bottom)",
+        "usage": "Buttons, image overlays, accent elements"
+      },
+      
+      "borderRadius": {
+        "small": "8px",
+        "medium": "16px",
+        "large": "24px",
+        "pill": "999px or 50%",
+        "description": "Generous, modern rounded corners throughout"
+      },
+      
+      "transitions": {
+        "default": "all 0.3s ease",
+        "fast": "all 0.15s ease",
+        "smooth": "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+        "usage": "Hover states, page transitions, interactive elements"
+      }
+    },
+    
+    "imagery": {
+      "eventPosters": {
+        "style": "Bold, graphic design with strong typography",
+        "colorTreatment": "High contrast, saturated colors",
+        "composition": "Artist photos with overlaid text and graphics",
+        "aspectRatio": "Portrait orientation (3:4 to 4:5)"
+      },
+      
+      "mockups": {
+        "type": "iPhone mockups showing app interface",
+        "placement": "Centered within feature cards",
+        "treatment": "Clean, high-fidelity renders"
+      },
+      
+      "3dElements": {
+        "style": "Abstract, flowing shapes",
+        "materials": "Glossy, iridescent, metallic",
+        "lighting": "Dramatic with colored highlights",
+        "usage": "Hero backgrounds, decorative elements"
+      }
+    },
+    
+    "interactionPatterns": {
+      "scrollBehavior": {
+        "type": "Smooth scroll with parallax effects",
+        "stickyElements": "Navigation bar",
+        "fadeIn": "Elements fade in as they enter viewport"
+      },
+      
+      "hoverStates": {
+        "cards": "Scale up slightly (1.02-1.05), increase shadow",
+        "buttons": "Scale, glow effect, or color shift",
+        "links": "Underline or color change",
+        "duration": "0.3s"
+      },
+      
+      "clickStates": {
+        "buttons": "Scale down slightly (0.98) then back",
+        "cards": "Navigate to detail page with transition"
+      },
+      
+      "carousel": {
+        "navigation": "Arrow buttons on sides",
+        "scroll": "Smooth horizontal scrolling",
+        "indicators": "Optional dot indicators below",
+        "gesture": "Swipe on touch devices"
+      }
+    },
+    
+    "contentStructure": {
+      "heroSection": {
+        "elements": [
+          "Immersive 3D background",
+          "Centered headline with value proposition",
+          "Primary CTA button",
+          "Optional secondary text"
+        ],
+        "textAlignment": "Center",
+        "contentWidth": "Max 600-800px"
+      },
+      
+      "eventsSection": {
+        "heading": "Large uppercase section title",
+        "layout": "Horizontal carousel of event cards",
+        "cardsVisible": "3 on desktop, 1-2 on mobile",
+        "navigation": "Arrow controls, scroll indicator"
+      },
+      
+      "featuresSection": {
+        "heading": "Multi-line centered headline",
+        "subheading": "Supporting text in accent color",
+        "layout": "3-column grid of feature cards",
+        "cards": [
+          {
+            "title": "Product name",
+            "category": "Badge label",
+            "description": "Benefit explanation",
+            "visual": "Product mockup"
+          }
+        ]
+      },
+      
+      "footer": {
+        "background": "Solid color or gradient",
+        "elements": [
+          "Download CTA",
+          "Support contact",
+          "Social media icons",
+          "Legal links (privacy policy)",
+          "Copyright notice"
+        ],
+        "layout": "Centered content with clear hierarchy"
+      }
+    },
+    
+    "brandPersonality": {
+      "adjectives": [
+        "Modern",
+        "Energetic",
+        "Immersive",
+        "Tech-forward",
+        "Bold",
+        "Vibrant",
+        "Underground",
+        "Community-driven"
+      ],
+      "tone": "Confident, innovative, youthful, inclusive",
+      "visualLanguage": "Dark, futuristic, with neon accents inspired by electronic music culture"
+    },
+    
+    "accessibilityNotes": {
+      "contrast": "High contrast between text and backgrounds",
+      "focusStates": "Visible focus indicators on interactive elements",
+      "textSize": "Minimum 16px for body text",
+      "altText": "All images should have descriptive alt text",
+      "keyboardNav": "All interactive elements keyboard accessible"
+    },
+    
+    "implementationGuidelines": {
+      "framework": "React or similar modern framework recommended",
+      "cssApproach": "Tailwind CSS or CSS-in-JS for utility-first styling",
+      "animations": "Framer Motion or GSAP for complex animations",
+      "images": "Next.js Image or similar optimization",
+      "responsive": "Mobile-first approach with breakpoints at 768px, 1024px, 1440px",
+      "performance": "Lazy loading for images, code splitting, optimized assets",
+      "i18n": "Multi-language support (Spanish/English at minimum)"
+    }
+  }
