@@ -95,8 +95,8 @@ export default function HeroWithVideo() {
       <div className="absolute top-0 left-0 right-0 z-30 pt-8 pb-6">
         <div className="max-w-container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center">
-            {/* Logo - Lado Izquierdo */}
-            <Link href="/" className="z-30 mr-auto">
+            {/* Logo - Lado Izquierdo (Desktop) */}
+            <Link href="/" className="z-30 mr-auto hidden md:block">
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-white uppercase tracking-tight drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
                 SYNAPSE
               </h1>
