@@ -209,7 +209,13 @@ export default function CheckoutWizard({ tickets: initialTickets, eventId, event
     })
 
     if (result.success) {
-      router.push(`/checkout/success?purchaseId=${result.purchaseId}`)
+      // Si hay una URL de pago de Mercado Pago, redirigir allí
+      if (result.paymentUrl) {
+        window.location.href = result.paymentUrl
+      } else {
+        // Si no hay URL (modo desarrollo/simulado), redirigir a success
+        router.push(`/checkout/success?purchaseId=${result.purchaseId}`)
+      }
     }
   }
 

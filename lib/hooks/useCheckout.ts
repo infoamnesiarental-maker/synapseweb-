@@ -173,67 +173,61 @@ export function useCheckout() {
         // No lanzamos error, solo logueamos (la transferencia se puede crear después)
       }
 
-      // En MVP, marcamos el pago como completado (simulado)
-      // En producción, esto se actualizaría cuando Mercado Pago confirme el pago
-      const { error: updateError } = await supabase
-        .from('purchases')
-        .update({ payment_status: 'completed' })
-        .eq('id', purchase.id)
-
-      if (updateError) {
-        console.warn('Error actualizando estado de pago:', updateError)
-      }
-
-      // Enviar email con tickets (no bloqueante)
-      const emailToSend = params.userId 
-        ? undefined // Si es usuario registrado, obtendremos el email del perfil
-        : params.guestEmail
-
-      if (emailToSend) {
-        // Enviar email de forma asíncrona (no bloquea la respuesta)
-        fetch('/api/send-tickets-email', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            purchaseId: purchase.id,
-            email: emailToSend,
-            userName: params.guestName || undefined,
-          }),
-        }).catch((err) => {
-          console.warn('Error enviando email (no crítico):', err)
-          // No lanzamos error, el email se puede enviar después
-        })
-      } else if (params.userId) {
-        // Si es usuario registrado, obtener email del perfil
+      // Crear preferencia de pago en Mercado Pago
+      // Obtener email del comprador
+      let buyerEmail = params.guestEmail
+      let buyerName = params.guestName
+      
+      if (params.userId && !buyerEmail) {
         const { data: profile } = await supabase
           .from('profiles')
           .select('email, full_name')
           .eq('id', params.userId)
           .single()
-
-        if (profile?.email) {
-          fetch('/api/send-tickets-email', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              purchaseId: purchase.id,
-              email: profile.email,
-              userName: profile.full_name || undefined,
-            }),
-          }).catch((err) => {
-            console.warn('Error enviando email (no crítico):', err)
-          })
+        
+        if (profile) {
+          buyerEmail = profile.email || undefined
+          buyerName = profile.full_name || undefined
         }
       }
 
+      if (!buyerEmail) {
+        throw new Error('Email del comprador requerido')
+      }
+
+      // Llamar a la API para crear la preferencia de Mercado Pago
+      const preferenceResponse = await fetch('/api/mercadopago/create-preference', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tickets: params.tickets,
+          eventId: params.eventId,
+          purchaseId: purchase.id,
+          buyerEmail,
+          buyerName,
+          buyerPhone: params.guestPhone,
+        }),
+      })
+
+      if (!preferenceResponse.ok) {
+        const errorData = await preferenceResponse.json()
+        throw new Error(errorData.error || 'Error creando preferencia de pago')
+      }
+
+      const preferenceData = await preferenceResponse.json()
+
+      if (!preferenceData.success) {
+        throw new Error(preferenceData.error || 'Error creando preferencia de pago')
+      }
+
+      // Retornar la URL de pago para redirigir al usuario
       return {
         success: true,
         purchaseId: purchase.id,
         purchase,
+        paymentUrl: preferenceData.initPoint || preferenceData.sandboxInitPoint, // URL de Mercado Pago
       }
     } catch (err: any) {
       setError(err.message || 'Error procesando compra')

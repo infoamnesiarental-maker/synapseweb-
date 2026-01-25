@@ -34,7 +34,7 @@ export default function AdminPage() {
   const { producers, loading: producersLoading, toggleProducerStatus } = useAdminProducers()
   const { users, loading: usersLoading, updateUserRole } = useAdminUsers()
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'producers' | 'users'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'producers' | 'users' | 'refunds'>('overview')
   const [searchQuery, setSearchQuery] = useState('')
   const [processingProducer, setProcessingProducer] = useState<string | null>(null)
   const [processingUser, setProcessingUser] = useState<string | null>(null)
@@ -174,6 +174,12 @@ export default function AdminPage() {
             }`}
           >
             Usuarios ({users.length})
+          </button>
+          <button
+            onClick={() => router.push('/admin/reembolsos')}
+            className="px-6 py-3 font-semibold transition-all duration-200 border-b-2 border-transparent text-lightGray hover:text-white"
+          >
+            Reembolsos
           </button>
         </div>
 
