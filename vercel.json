@@ -1,0 +1,8 @@
+{
+  "github": {
+    "deploymentProtection": {
+      "waitForCI": true,
+      "workflowName": "CI"
+    }
+  }
+}
