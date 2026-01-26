@@ -12,6 +12,9 @@ jobs:
   verify:
     name: Verify Code Quality
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
 
     steps:
       # 1. Descarga el código del repositorio
