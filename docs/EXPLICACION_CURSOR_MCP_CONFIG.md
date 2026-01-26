@@ -65,7 +65,7 @@ Este es el archivo que **realmente** usa Cursor para conectarse a Supabase.
 ### Archivo REAL (en configuración de Cursor):
 ```json
 {
-  "SUPABASE_URL": "https://qhopjdxbhmwqjuvrquyj.supabase.co",
+  "SUPABASE_URL": "https://TU_PROYECTO.supabase.co",
   "SUPABASE_ACCESS_TOKEN": "TU_TOKEN_AQUI"
 }
 ```
