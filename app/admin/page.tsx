@@ -41,11 +41,31 @@ export default function AdminPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!authLoading && !isAdmin) {
+    // Log para debugging
+    console.log('🔍 [AdminPage] Estado de autenticación:', {
+      authLoading,
+      isAdmin,
+      user: user?.email,
+      profileRole: profile?.role,
+      hasUser: !!user,
+      hasProfile: !!profile
+    })
+
+    // IMPORTANTE: Solo redirigir si:
+    // 1. Ya terminó de cargar (authLoading === false)
+    // 2. Y definitivamente NO es admin (isAdmin === false)
+    // 3. Y tiene un perfil cargado (para evitar redirigir mientras carga)
+    if (!authLoading && profile !== null && !isAdmin) {
+      console.log('❌ [AdminPage] Redirigiendo - No es admin:', {
+        authLoading,
+        isAdmin,
+        profileRole: profile?.role
+      })
       router.push('/')
     }
-  }, [authLoading, isAdmin, router])
+  }, [authLoading, isAdmin, router, user, profile])
 
+  // Mostrar loading mientras carga la autenticación
   if (authLoading) {
     return (
       <div className="min-h-screen bg-black-deep flex items-center justify-center">
@@ -54,7 +74,17 @@ export default function AdminPage() {
     )
   }
 
-  if (!isAdmin) {
+  // Si no hay perfil aún, esperar (puede estar cargando)
+  if (!profile && user) {
+    return (
+      <div className="min-h-screen bg-black-deep flex items-center justify-center">
+        <div className="text-white text-xl">Cargando perfil...</div>
+      </div>
+    )
+  }
+
+  // Solo redirigir/ocultar si definitivamente NO es admin Y tiene perfil cargado
+  if (profile && !isAdmin) {
     return null
   }
 

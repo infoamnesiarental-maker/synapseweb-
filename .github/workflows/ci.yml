@@ -32,12 +32,14 @@ jobs:
       # 4. Verifica TypeScript (sin generar archivos)
       - name: TypeScript Check
         run: npx tsc --noEmit
+        continue-on-error: false
 
       # 5. Ejecuta ESLint (continúa aunque haya warnings)
       - name: Run ESLint
-        run: npm run lint || true
+        run: npm run lint || echo "ESLint completed with warnings"
         continue-on-error: true
 
       # 6. Verifica que el proyecto compile correctamente
       - name: Build Project
         run: npm run build
+        continue-on-error: false

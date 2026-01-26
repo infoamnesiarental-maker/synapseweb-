@@ -1,0 +1,30 @@
+name: CI Simple
+
+# Versión simplificada del CI que solo verifica lo esencial
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+jobs:
+  verify:
+    name: Verify Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Solo verifica que compile (lo más importante)
+      - name: Build Project
+        run: npm run build

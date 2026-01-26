@@ -84,13 +84,47 @@ export async function updateSession(request: NextRequest) {
 
   // Si está autenticado, obtener su perfil y rol
   if (user) {
-    const { data: profile } = await supabase
+    let userRole = 'user'
+    let profile = null
+    
+    // Intentar obtener el perfil
+    const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single()
 
-    const userRole = profile?.role || 'user'
+    // Log para debugging
+    if (profileError) {
+      console.error('❌ [MIDDLEWARE] Error obteniendo perfil:', {
+        error: profileError,
+        code: profileError.code,
+        message: profileError.message,
+        details: profileError.details,
+        hint: profileError.hint,
+        userId: user.id,
+        userEmail: user.email
+      })
+      
+      // Si es error PGRST116 (no encontrado), el perfil no existe
+      // Si es otro error, puede ser RLS o problema de conexión
+      if (profileError.code === 'PGRST116') {
+        console.warn('⚠️ [MIDDLEWARE] Perfil no encontrado para usuario:', user.id)
+      }
+    } else {
+      profile = profileData
+      userRole = profileData?.role || 'user'
+    }
+    
+    // Log para debugging
+    console.log('🔍 [MIDDLEWARE] Usuario autenticado:', {
+      userId: user.id,
+      userEmail: user.email,
+      userRole: userRole,
+      profileData: profile,
+      hasProfile: !!profile,
+      pathname: pathname
+    })
 
     // Proteger rutas de dashboard (solo productoras)
     if (pathname.startsWith('/dashboard')) {
@@ -138,11 +172,20 @@ export async function updateSession(request: NextRequest) {
 
     // Proteger rutas de admin (solo admin)
     if (pathname.startsWith('/admin')) {
+      console.log('🔐 [MIDDLEWARE] Verificando acceso a /admin:', {
+        userRole,
+        isAdmin: userRole === 'admin',
+        pathname
+      })
+      
       if (userRole !== 'admin') {
+        console.log('❌ [MIDDLEWARE] Acceso denegado a /admin. Rol actual:', userRole)
         const url = request.nextUrl.clone()
         url.pathname = '/'
         return NextResponse.redirect(url)
       }
+      
+      console.log('✅ [MIDDLEWARE] Acceso permitido a /admin')
     }
 
     // Proteger /mis-compras (solo usuarios autenticados)

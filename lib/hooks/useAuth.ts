@@ -54,8 +54,23 @@ export function useAuth() {
           .select('role')
           .eq('id', user.id)
           .single()
-          .then(({ data }) => {
+          .then(({ data, error: profileError }) => {
+            // Log para debugging
+            if (profileError) {
+              console.error('❌ [useAuth] Error obteniendo perfil:', {
+                error: profileError,
+                code: profileError.code,
+                message: profileError.message,
+                userId: user.id,
+                userEmail: user.email
+              })
+            }
+
             if (data) {
+              console.log('✅ [useAuth] Perfil obtenido:', {
+                userId: user.id,
+                role: data.role
+              })
               setProfile(data)
               // Si es productora, obtener información de la productora
               if (data.role === 'producer') {
@@ -88,9 +103,15 @@ export function useAuth() {
                 authCache = { user, profile: data, producer: null, timestamp: Date.now() }
               }
             } else {
+              console.warn('⚠️ [useAuth] Perfil no encontrado para usuario:', user.id)
               setLoading(false)
               authCache = { user, profile: null, producer: null, timestamp: Date.now() }
             }
+          })
+          .catch((err) => {
+            console.error('❌ [useAuth] Error inesperado obteniendo perfil:', err)
+            setLoading(false)
+            authCache = { user, profile: null, producer: null, timestamp: Date.now() }
           })
       } else {
         setLoading(false)

@@ -78,6 +78,34 @@ synapseweb/
 2. Obtén tu URL y Anon Key desde Settings > API
 3. Agrega las variables de entorno en tu archivo `.env.local`
 
+## 🤖 Configuración MCP (Model Context Protocol)
+
+Este proyecto está configurado para usar MCP con Supabase, permitiendo que la AI acceda a información real de tu base de datos.
+
+### Configuración Rápida
+
+1. **Obtén un Personal Access Token de Supabase:**
+   - Ve a: https://supabase.com/dashboard/account/tokens
+   - Crea un nuevo token y cópialo
+
+2. **Ejecuta el script de configuración:**
+   ```powershell
+   .\scripts\setup-mcp.ps1
+   ```
+
+3. **Verifica la configuración:**
+   ```powershell
+   .\scripts\verify-mcp.ps1
+   ```
+
+4. **Reinicia Cursor** y prueba preguntando sobre tu base de datos
+
+### Documentación Completa
+
+- 📖 [Guía Paso a Paso](docs/IMPLEMENTACION_MCP_PASO_A_PASO.md)
+- 📖 [Guía Completa de Configuración](docs/GUIA_CONFIGURACION_MCP_SUPABASE.md)
+- ⚡ [Inicio Rápido](docs/MCP_SUPABASE_QUICK_START.md)
+
 ## 📚 Próximos Pasos
 
 - Configurar autenticación con Supabase Auth
