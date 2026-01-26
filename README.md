@@ -106,6 +106,10 @@ Este proyecto está configurado para usar MCP con Supabase, permitiendo que la A
 - 📖 [Guía Completa de Configuración](docs/GUIA_CONFIGURACION_MCP_SUPABASE.md)
 - ⚡ [Inicio Rápido](docs/MCP_SUPABASE_QUICK_START.md)
 
+## 🔄 CI/CD
+
+Este proyecto utiliza GitHub Actions para CI y Vercel para despliegues automáticos. Los deployments a producción esperan a que los checks de CI pasen exitosamente.
+
 ## 📚 Próximos Pasos
 
 - Configurar autenticación con Supabase Auth
