@@ -1,4 +1,4 @@
-# Ticketera - Sistema de Gestión de Tickets
+# Synapse - Sistema de Gestión de Tickets
 
 Sistema de gestión de tickets desarrollado con Next.js 15, React 19, TypeScript, Supabase y Tailwind CSS.
 
