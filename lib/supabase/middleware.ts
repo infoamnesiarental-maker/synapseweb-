@@ -54,6 +54,12 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
+  // Excluir rutas de API del procesamiento del middleware
+  // Las rutas de API manejan su propia autenticación si es necesaria
+  if (pathname.startsWith('/api/')) {
+    return supabaseResponse
+  }
+
   // Excluir archivos estáticos del procesamiento del middleware
   // Estos archivos deben ser servidos directamente por Next.js
   const staticFileExtensions = ['.mp4', '.mov', '.avi', '.webm', '.pdf', '.zip', '.json', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico']

@@ -1,6 +1,9 @@
 import Link from 'next/link'
 import ProducerRegistrationFlow from '@/components/auth/ProducerRegistrationFlow'
 
+// Marcar como dinámica para evitar pre-render durante build
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: 'Registrarse como Productora - Synapse',
   description: 'Crea tu cuenta de productora en Synapse',

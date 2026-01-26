@@ -1,6 +1,9 @@
 import Link from 'next/link'
 import LoginForm from '@/components/auth/LoginForm'
 
+// Marcar como dinámica para evitar pre-render durante build
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: 'Iniciar Sesión - Synapse',
   description: 'Inicia sesión en tu cuenta de Synapse',

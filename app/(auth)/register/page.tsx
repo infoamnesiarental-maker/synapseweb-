@@ -1,6 +1,9 @@
 import Link from 'next/link'
 import RegisterForm from '@/components/auth/RegisterForm'
 
+// Marcar como dinámica para evitar pre-render durante build
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: 'Registrarse - Synapse',
   description: 'Crea tu cuenta en Synapse',

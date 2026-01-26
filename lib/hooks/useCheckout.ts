@@ -156,21 +156,26 @@ export function useCheckout() {
       const endDate = eventDates?.end_date ? new Date(eventDates.end_date) : new Date()
       const scheduledAt = new Date(endDate.getTime() + 48 * 60 * 60 * 1000) // 48 horas después
 
-      // Crear transferencia pendiente
-      const { error: transferError } = await supabase
-        .from('transfers')
-        .insert({
-          purchase_id: purchase.id,
-          event_id: params.eventId,
-          producer_id: eventData.producer_id,
-          amount: totalBreakdown.basePrice, // Solo el precio base de la productora
-          status: 'pending',
-          scheduled_at: scheduledAt.toISOString(),
-        })
+      // Crear transferencia pendiente (opcional - no bloquea el flujo si falla)
+      try {
+        const { error: transferError } = await supabase
+          .from('transfers')
+          .insert({
+            purchase_id: purchase.id,
+            event_id: params.eventId,
+            producer_id: eventData.producer_id,
+            amount: totalBreakdown.basePrice, // Solo el precio base de la productora
+            status: 'pending',
+            scheduled_at: scheduledAt.toISOString(),
+          })
 
-      if (transferError) {
-        console.warn('Error creando transferencia:', transferError)
-        // No lanzamos error, solo logueamos (la transferencia se puede crear después)
+        if (transferError) {
+          console.warn('⚠️ Error creando transferencia (no crítico):', transferError)
+          // No lanzamos error - la transferencia se puede crear después manualmente o por un proceso batch
+        }
+      } catch (transferErr: any) {
+        console.warn('⚠️ Excepción al crear transferencia (no crítico):', transferErr)
+        // Continuar con el flujo aunque falle la transferencia
       }
 
       // Crear preferencia de pago en Mercado Pago
@@ -196,6 +201,13 @@ export function useCheckout() {
       }
 
       // Llamar a la API para crear la preferencia de Mercado Pago
+      console.log('📞 Llamando a /api/mercadopago/create-preference con:', {
+        ticketsCount: params.tickets.length,
+        eventId: params.eventId,
+        purchaseId: purchase.id,
+        buyerEmail,
+      })
+      
       const preferenceResponse = await fetch('/api/mercadopago/create-preference', {
         method: 'POST',
         headers: {
@@ -211,9 +223,31 @@ export function useCheckout() {
         }),
       })
 
+      console.log('📥 Respuesta recibida:', {
+        status: preferenceResponse.status,
+        statusText: preferenceResponse.statusText,
+        contentType: preferenceResponse.headers.get('content-type'),
+        ok: preferenceResponse.ok,
+      })
+
+      // Verificar el Content-Type antes de parsear JSON
+      const contentType = preferenceResponse.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        const textResponse = await preferenceResponse.text()
+        console.error('❌ Respuesta no JSON recibida. Status:', preferenceResponse.status)
+        console.error('❌ Content-Type:', contentType)
+        console.error('❌ Primeros 500 caracteres de la respuesta:', textResponse.substring(0, 500))
+        throw new Error(`Error del servidor: La respuesta no es JSON. Status: ${preferenceResponse.status}. Ver consola para más detalles.`)
+      }
+
       if (!preferenceResponse.ok) {
-        const errorData = await preferenceResponse.json()
-        throw new Error(errorData.error || 'Error creando preferencia de pago')
+        try {
+          const errorData = await preferenceResponse.json()
+          throw new Error(errorData.error || `Error creando preferencia de pago (${preferenceResponse.status})`)
+        } catch (jsonError) {
+          const textResponse = await preferenceResponse.text()
+          throw new Error(`Error del servidor (${preferenceResponse.status}): ${textResponse.substring(0, 200)}`)
+        }
       }
 
       const preferenceData = await preferenceResponse.json()
@@ -223,11 +257,14 @@ export function useCheckout() {
       }
 
       // Retornar la URL de pago para redirigir al usuario
+      // Priorizar sandboxInitPoint (modo prueba) si está disponible
+      const paymentUrl = preferenceData.paymentUrl || preferenceData.sandboxInitPoint || preferenceData.initPoint
+
       return {
         success: true,
         purchaseId: purchase.id,
         purchase,
-        paymentUrl: preferenceData.initPoint || preferenceData.sandboxInitPoint, // URL de Mercado Pago
+        paymentUrl, // URL correcta según el modo (prueba o producción)
       }
     } catch (err: any) {
       setError(err.message || 'Error procesando compra')

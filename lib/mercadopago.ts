@@ -11,7 +11,7 @@ const client = new MercadoPagoConfig({
   accessToken: accessToken || '',
   options: {
     timeout: 5000,
-    idempotencyKey: 'abc',
+    // idempotencyKey se genera automáticamente si no se especifica
   },
 })
 
@@ -67,10 +67,26 @@ export async function createPaymentPreference(params: CreatePreferenceParams) {
       },
     })
 
+    // Validar que la preferencia tenga al menos una URL de pago
+    if (!preference.init_point && !preference.sandbox_init_point) {
+      console.error('Preferencia creada sin URLs de pago:', preference)
+      throw new Error('La preferencia de pago no tiene URLs de pago válidas')
+    }
+
     return preference
   } catch (error: any) {
     console.error('Error creando preferencia de Mercado Pago:', error)
-    throw new Error(`Error creando preferencia de pago: ${error.message || 'Error desconocido'}`)
+    
+    // Mejorar mensajes de error según el tipo
+    if (error.status === 401 || error.statusCode === 401) {
+      throw new Error('Credenciales de Mercado Pago inválidas. Verifica tu Access Token.')
+    } else if (error.status === 400 || error.statusCode === 400) {
+      throw new Error(`Error en los datos de la preferencia: ${error.message || JSON.stringify(error)}`)
+    } else if (error.message) {
+      throw new Error(`Error creando preferencia de pago: ${error.message}`)
+    } else {
+      throw new Error(`Error creando preferencia de pago: ${JSON.stringify(error)}`)
+    }
   }
 }
 
