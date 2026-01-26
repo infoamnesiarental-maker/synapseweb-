@@ -43,3 +43,9 @@ jobs:
       - name: Build Project
         run: npm run build
         continue-on-error: false
+
+      # 7. Notificar a Vercel que el check paso
+      - name: 'notify vercel'
+        uses: 'vercel/repository-dispatch/actions/status@v1'
+        with:
+          name: Vercel - synapseweb-: CI
