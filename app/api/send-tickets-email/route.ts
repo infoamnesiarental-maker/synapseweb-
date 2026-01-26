@@ -4,7 +4,18 @@ import { createClient } from '@/lib/supabase/server'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale/es'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Marcar esta ruta como dinámica para evitar que se ejecute durante el build
+export const dynamic = 'force-dynamic'
+
+// Inicializar Resend solo cuando se necesite (lazy initialization)
+// Esto evita errores durante el build cuando no hay API key
+function getResend() {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    throw new Error('RESEND_API_KEY no está configurada. Por favor, configura la variable de entorno RESEND_API_KEY.')
+  }
+  return new Resend(apiKey)
+}
 
 interface SendTicketsEmailParams {
   purchaseId: string
@@ -190,6 +201,9 @@ export async function POST(request: NextRequest) {
         )
       : emailHtml
 
+    // Inicializar Resend solo cuando se necesite
+    const resend = getResend()
+    
     // Enviar email (sin PDF adjunto - el usuario puede descargarlo desde Mis Compras)
     const { data, error } = await resend.emails.send({
       from: 'Synapse <onboarding@resend.dev>', // Para desarrollo. Cambiar por tu dominio en producción
