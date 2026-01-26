@@ -1,0 +1,42 @@
+name: CI
+
+# Se ejecuta cuando se crea o actualiza un Pull Request
+# o cuando se hace push a las ramas main/master
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+jobs:
+  verify:
+    name: Verify Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Descarga el código del repositorio
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Configura Node.js con caché de npm
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # 3. Instala dependencias
+      - name: Install dependencies
+        run: npm ci
+
+      # 4. Verifica TypeScript (sin generar archivos)
+      - name: TypeScript Check
+        run: npx tsc --noEmit
+
+      # 5. Ejecuta ESLint
+      - name: Run ESLint
+        run: npm run lint
+
+      # 6. Verifica que el proyecto compile correctamente
+      - name: Build Project
+        run: npm run build
