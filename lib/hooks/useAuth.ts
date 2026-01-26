@@ -49,11 +49,13 @@ export function useAuth() {
       setUser(user)
       if (user) {
         // Obtener perfil del usuario
-        supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single()
+        Promise.resolve(
+          supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single()
+        )
           .then(({ data, error: profileError }) => {
             // Log para debugging
             if (profileError) {
@@ -108,7 +110,7 @@ export function useAuth() {
               authCache = { user, profile: null, producer: null, timestamp: Date.now() }
             }
           })
-          .catch((err) => {
+          .catch((err: unknown) => {
             console.error('❌ [useAuth] Error inesperado obteniendo perfil:', err)
             setLoading(false)
             authCache = { user, profile: null, producer: null, timestamp: Date.now() }
