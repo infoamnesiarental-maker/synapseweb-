@@ -66,7 +66,7 @@ Este es el archivo que **realmente** usa Cursor para conectarse a Supabase.
 ```json
 {
   "SUPABASE_URL": "https://qhopjdxbhmwqjuvrquyj.supabase.co",
-  "SUPABASE_ACCESS_TOKEN": "sbp_e4c8fb15a4e0364107c179a93ea14cd34abf9c3e"
+  "SUPABASE_ACCESS_TOKEN": "TU_TOKEN_AQUI"
 }
 ```
 - ✅ Está fuera de tu proyecto (en `%APPDATA%`)

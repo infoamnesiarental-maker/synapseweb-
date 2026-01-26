@@ -51,7 +51,7 @@ https://www.mercadopago.com.ar/developers/es/docs/checkout-pro/integration-test
 Abre tu archivo `.env.local` y verifica que tengas:
 
 ```env
-MERCADOPAGO_ACCESS_TOKEN=APP_USR-7447923468298505-012511-dbda0d5f1982d3f629539d9057e1cd42-3007590479
+MERCADOPAGO_ACCESS_TOKEN=TU_ACCESS_TOKEN_AQUI
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
