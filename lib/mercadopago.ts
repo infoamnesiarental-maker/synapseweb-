@@ -52,20 +52,31 @@ export async function createPaymentPreference(params: CreatePreferenceParams) {
   }
 
   try {
-    const preference = await preferenceClient.create({
-      body: {
-        items: params.items,
-        payer: params.payer,
-        back_urls: params.back_urls || {
-          success: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/checkout/success`,
-          failure: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/checkout?error=payment_failed`,
-          pending: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/checkout/success?status=pending`,
-        },
-        auto_return: params.auto_return || 'approved',
-        external_reference: params.external_reference,
-        notification_url: params.notification_url || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/mercadopago/webhook`,
+    const body = {
+      items: params.items,
+      payer: params.payer,
+      back_urls: params.back_urls || {
+        success: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/checkout/success`,
+        failure: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/checkout?error=payment_failed`,
+        pending: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/checkout/success?status=pending`,
       },
-    })
+      auto_return: params.auto_return || 'approved',
+      external_reference: params.external_reference,
+      notification_url: params.notification_url || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/mercadopago/webhook`,
+    }
+
+    console.log('📡 Enviando a Mercado Pago API:', JSON.stringify({
+      ...body,
+      payer: body.payer ? {
+        ...body.payer,
+        phone: body.payer.phone ? {
+          area_code: body.payer.phone.area_code,
+          number: body.payer.phone.number?.substring(0, 3) + '...',
+        } : undefined,
+      } : undefined,
+    }, null, 2))
+
+    const preference = await preferenceClient.create({ body })
 
     // Validar que la preferencia tenga al menos una URL de pago
     if (!preference.init_point && !preference.sandbox_init_point) {
