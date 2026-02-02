@@ -112,7 +112,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 }));
 
 // Manejar llamadas a herramientas
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
   const { name, arguments: args } = request.params;
 
   try {

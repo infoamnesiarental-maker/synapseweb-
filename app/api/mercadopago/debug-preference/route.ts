@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
         failure: `${appUrl}/checkout?error=payment_failed&purchaseId=${body.purchaseId || 'test'}`,
         pending: `${appUrl}/checkout/success?purchaseId=${body.purchaseId || 'test'}&status=pending`,
       },
-      auto_return: 'approved',
+      auto_return: 'approved' as const,
       external_reference: body.purchaseId || 'test',
       notification_url: `${appUrl}/api/mercadopago/webhook`,
     }
