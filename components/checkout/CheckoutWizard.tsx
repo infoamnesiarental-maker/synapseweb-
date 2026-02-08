@@ -393,7 +393,7 @@ export default function CheckoutWizard({ tickets: initialTickets, eventId, event
                     <span className="text-white font-semibold">${formattedBreakdown.basePrice} ARS</span>
                   </div>
                   <div className="flex justify-between text-white/60 text-sm">
-                    <span>Cargo por servicio</span>
+                    <span>Cargo por servicio (15%)</span>
                     <span className="text-white font-semibold">${formattedBreakdown.commission} ARS</span>
                   </div>
                   <div className="flex justify-between text-white font-black text-xl pt-3 border-t border-white/10">
@@ -712,7 +712,7 @@ export default function CheckoutWizard({ tickets: initialTickets, eventId, event
                     <span className="text-white font-semibold">${formattedBreakdown.basePrice} ARS</span>
                   </div>
                   <div className="flex justify-between text-white/60 text-sm">
-                    <span>Cargo por servicio</span>
+                    <span>Cargo por servicio (15%)</span>
                     <span className="text-white font-semibold">${formattedBreakdown.commission} ARS</span>
                   </div>
                   <div className="flex justify-between text-white font-black text-xl pt-3 border-t border-white/10">

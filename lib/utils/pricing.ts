@@ -45,16 +45,17 @@ export interface FinancialBreakdown {
  * @returns Desglose completo de precios
  */
 export function calculatePrice(basePrice: number): PriceBreakdown {
-  // Comisión sobre precio base
+  // Comisión sobre precio base (15%)
   const commission = basePrice * COMMISSION_RATE
   
   // Precio final (base + comisión)
   const totalPrice = basePrice + commission
   
+  // Redondear a 2 decimales (no a entero)
   return {
-    basePrice,
-    commission: Math.round(commission),
-    totalPrice: Math.round(totalPrice),
+    basePrice: Math.round(basePrice * 100) / 100,
+    commission: Math.round(commission * 100) / 100,
+    totalPrice: Math.round(totalPrice * 100) / 100,
   }
 }
 
