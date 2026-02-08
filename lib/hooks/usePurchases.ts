@@ -123,9 +123,23 @@ export function usePurchases(userId?: string | null) {
               console.warn(`Error obteniendo tickets para compra ${purchase.id}:`, ticketsError)
             }
 
+            // Supabase puede devolver event como objeto o array
+            const eventData = Array.isArray(purchase.event) 
+              ? purchase.event[0]
+              : purchase.event
+
             return {
               ...purchase,
-              event: purchase.event as PurchaseWithDetails['event'],
+              event: {
+                id: eventData?.id || '',
+                name: eventData?.name || '',
+                slug: eventData?.slug || '',
+                start_date: eventData?.start_date || '',
+                end_date: eventData?.end_date || '',
+                venue_name: eventData?.venue_name || '',
+                venue_address: eventData?.venue_address || null,
+                flyer_url: eventData?.flyer_url || null,
+              } as PurchaseWithDetails['event'],
               tickets: (ticketsData || []).map((ticket: any) => {
                 // Supabase puede devolver ticket_type como objeto o array
                 const ticketType = Array.isArray(ticket.ticket_type) 
