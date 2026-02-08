@@ -266,34 +266,18 @@ export function useCheckout() {
         throw new Error(preferenceData.error || 'Error creando preferencia de pago')
       }
 
-      // Retornar la URL de pago para redirigir al usuario
-      // IMPORTANTE: Según la documentación de Mercado Pago y casos reales, cuando usas
-      // credenciales de prueba del vendedor de prueba, debes usar initPoint (producción),
-      // NO sandboxInitPoint. Esto es porque las cuentas de prueba funcionan con producción.
-      // 
-      // El servidor ya seleccionó la URL correcta en paymentUrl, así que la usamos directamente
-      const paymentUrl = preferenceData.paymentUrl || preferenceData.initPoint || preferenceData.sandboxInitPoint
-      
-      console.log('🔗 URL de pago seleccionada:', {
-        hasSandboxInitPoint: !!preferenceData.sandboxInitPoint,
-        hasInitPoint: !!preferenceData.initPoint,
-        sandboxUrl: preferenceData.sandboxInitPoint?.substring(0, 50) + '...',
-        productionUrl: preferenceData.initPoint?.substring(0, 50) + '...',
-        selectedUrl: paymentUrl?.substring(0, 50) + '...',
-        isUsingSandbox: paymentUrl === preferenceData.sandboxInitPoint,
-        recommendation: preferenceData.paymentUrl 
-          ? 'Usando URL seleccionada por el servidor' 
-          : preferenceData.initPoint 
-          ? 'Usando URL de producción (recomendado para credenciales de prueba)' 
-          : 'Usando URL de sandbox (si está disponible)',
-      })
+      // PRODUCCIÓN: Usar paymentUrl del servidor (siempre es init_point de producción)
+      const paymentUrl = preferenceData.paymentUrl || preferenceData.initPoint
       
       if (!paymentUrl) {
         console.error('❌ ERROR: No hay URL de pago disponible')
-        throw new Error('No se pudo obtener la URL de pago de Mercado Pago')
-      } else {
-        console.log('✅ URL de pago obtenida correctamente')
+        throw new Error('No se pudo obtener la URL de pago de Mercado Pago. Verifica que el token sea de producción (APP_USR-).')
       }
+      
+      console.log('✅ URL de pago de PRODUCCIÓN obtenida:', {
+        paymentUrl: paymentUrl.substring(0, 50) + '...',
+        preferenceId: preferenceData.preferenceId,
+      })
 
       return {
         success: true,

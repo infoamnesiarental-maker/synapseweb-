@@ -262,51 +262,35 @@ export async function POST(request: NextRequest) {
     
     const preference = await createPaymentPreference(preferenceData)
 
-    // IMPORTANTE: Según la documentación y casos reales, cuando usas credenciales de prueba
-    // del vendedor de prueba, debes usar la URL de PRODUCCIÓN (init_point), NO sandbox
-    // Esto es porque las cuentas de prueba funcionan con el entorno de producción
-    // 
-    // Si tienes sandbox_init_point disponible, puedes usarlo, pero si estás usando
-    // credenciales de prueba del vendedor de prueba, usa init_point
-    const isTestToken = process.env.MERCADOPAGO_ACCESS_TOKEN?.startsWith('TEST-')
+    // PRODUCCIÓN: SIEMPRE usar init_point (producción)
+    // No se permite sandbox en producción
+    const paymentUrl = preference.init_point
     
-    // Si es un token de prueba (TEST-), usar init_point (producción)
-    // Si es un token de producción (APP_USR-), también usar init_point
-    // Solo usar sandbox_init_point si explícitamente necesitas sandbox
-    const paymentUrl = (isTestToken || !preference.sandbox_init_point) 
-      ? preference.init_point 
-      : preference.sandbox_init_point || preference.init_point
-
-    console.log('🔗 URLs de pago disponibles:', {
-      hasSandboxInitPoint: !!preference.sandbox_init_point,
-      hasInitPoint: !!preference.init_point,
-      isTestToken,
-      sandboxUrl: preference.sandbox_init_point?.substring(0, 50) + '...',
-      initUrl: preference.init_point?.substring(0, 50) + '...',
-      usingUrl: paymentUrl?.substring(0, 50) + '...',
-      isUsingSandbox: paymentUrl === preference.sandbox_init_point,
-      recommendation: isTestToken 
-        ? 'Usando init_point (producción) porque el token es de prueba (TEST-)' 
-        : preference.sandbox_init_point 
-        ? 'Sandbox disponible, pero usando init_point según mejores prácticas' 
-        : 'Usando init_point (producción)',
-    })
-
-    // Advertencia si estamos en desarrollo
-    if (process.env.NODE_ENV === 'development') {
-      if (isTestToken) {
-        console.log('ℹ️ Token de prueba detectado (TEST-). Usando URL de producción (init_point) según mejores prácticas.')
-      } else if (!preference.init_point) {
-        console.warn('⚠️ ADVERTENCIA: No se obtuvo init_point. Verifica tus credenciales.')
-      }
+    if (!paymentUrl) {
+      throw new Error('No se obtuvo init_point de Mercado Pago. Verifica que tu token de acceso sea de PRODUCCIÓN (debe empezar con APP_USR-).')
     }
+
+    // Validar que el token sea de producción
+    const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN
+    if (!accessToken) {
+      throw new Error('MERCADOPAGO_ACCESS_TOKEN no está configurado')
+    }
+    
+    if (!accessToken.startsWith('APP_USR-')) {
+      throw new Error(`Token de Mercado Pago inválido para producción. Debe empezar con 'APP_USR-'. Token actual empieza con: ${accessToken.substring(0, 10)}...`)
+    }
+
+    console.log('✅ Preferencia de pago creada para PRODUCCIÓN:', {
+      preferenceId: preference.id,
+      paymentUrl: paymentUrl.substring(0, 50) + '...',
+      tokenType: 'PRODUCCIÓN (APP_USR-)',
+    })
 
     return NextResponse.json({
       success: true,
       preferenceId: preference.id,
       initPoint: preference.init_point,
-      sandboxInitPoint: preference.sandbox_init_point,
-      paymentUrl, // URL correcta según el modo (prueba o producción)
+      paymentUrl, // URL de producción
     })
   } catch (error: any) {
     console.error('❌ Error creando preferencia de Mercado Pago:', error)

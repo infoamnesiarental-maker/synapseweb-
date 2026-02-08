@@ -78,10 +78,10 @@ export async function createPaymentPreference(params: CreatePreferenceParams) {
 
     const preference = await preferenceClient.create({ body })
 
-    // Validar que la preferencia tenga al menos una URL de pago
-    if (!preference.init_point && !preference.sandbox_init_point) {
-      console.error('Preferencia creada sin URLs de pago:', preference)
-      throw new Error('La preferencia de pago no tiene URLs de pago válidas')
+    // PRODUCCIÓN: Validar que la preferencia tenga init_point (producción)
+    if (!preference.init_point) {
+      console.error('❌ Preferencia creada sin init_point (producción):', preference)
+      throw new Error('La preferencia de pago no tiene URL de producción (init_point). Verifica que tu token sea de PRODUCCIÓN (APP_USR-).')
     }
 
     return preference
