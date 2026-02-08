@@ -44,10 +44,13 @@ export default function DashboardPage() {
       }
 
       // Obtener todas las compras de eventos de esta productora
+      // IMPORTANTE: Solo campos públicos (productores NO deben ver datos financieros internos)
       const { data: purchases } = await supabase
         .from('purchases')
         .select(`
           base_amount,
+          total_amount,
+          commission_amount,
           tickets:tickets(id)
         `)
         .eq('payment_status', 'completed')

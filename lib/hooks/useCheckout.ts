@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { calculatePrice, calculateTotalPrice, PriceBreakdown } from '@/lib/utils/pricing'
+import { calculatePrice, calculateTotalPrice, calculateFinancialBreakdown, MIN_SETTLEMENT_HOURS, PriceBreakdown } from '@/lib/utils/pricing'
 
 export interface CheckoutTicket {
   ticketTypeId: string
@@ -50,7 +50,11 @@ export function useCheckout() {
         }))
       )
 
-      // Crear la compra
+      // Calcular desglose financiero completo según Manual V1
+      const purchaseDate = new Date() // Fecha actual (cuando se crea la compra)
+      const financialBreakdown = calculateFinancialBreakdown(totalBreakdown.basePrice, purchaseDate)
+
+      // Crear la compra con todos los campos financieros
       const { data: purchase, error: purchaseError } = await supabase
         .from('purchases')
         .insert({
@@ -59,11 +63,21 @@ export function useCheckout() {
           guest_name: params.guestName || null,
           guest_phone: params.guestPhone || null,
           event_id: params.eventId,
-          total_amount: totalBreakdown.totalPrice,
-          base_amount: totalBreakdown.basePrice,
-          commission_amount: totalBreakdown.commission,
-          payment_method: 'mercadopago', // Por ahora siempre mercadopago
-          payment_status: 'pending', // En MVP, marcamos como pending (simulado)
+          total_amount: financialBreakdown.totalAmount,
+          base_amount: financialBreakdown.baseAmount,
+          commission_amount: financialBreakdown.commissionAmount,
+          // Gastos operativos (7.73% del total cobrado)
+          operating_costs: financialBreakdown.operatingCosts.total,
+          mercadopago_commission: financialBreakdown.operatingCosts.mercadopagoCommission,
+          iva_commission: financialBreakdown.operatingCosts.ivaCommission,
+          iibb_retention: financialBreakdown.operatingCosts.iibbRetention,
+          // Resultados financieros
+          net_amount: financialBreakdown.netAmount,
+          net_margin: financialBreakdown.netMargin,
+          money_release_date: financialBreakdown.moneyReleaseDate.toISOString(),
+          settlement_status: 'pending',
+          payment_method: 'mercadopago',
+          payment_status: 'pending',
         })
         .select()
         .single()
@@ -146,15 +160,11 @@ export function useCheckout() {
         throw new Error(`Error obteniendo evento: ${eventError?.message}`)
       }
 
-      // Calcular cuándo transferir (24-48hs después del evento)
-      const { data: eventDates } = await supabase
-        .from('events')
-        .select('end_date')
-        .eq('id', params.eventId)
-        .single()
-
-      const endDate = eventDates?.end_date ? new Date(eventDates.end_date) : new Date()
-      const scheduledAt = new Date(endDate.getTime() + 48 * 60 * 60 * 1000) // 48 horas después
+      // Calcular cuándo transferir (240 horas = 10 días después de la compra)
+      // Según Manual V1: No transferir antes de 240 horas desde purchase.created_at
+      const scheduledAt = new Date(
+        purchaseDate.getTime() + MIN_SETTLEMENT_HOURS * 60 * 60 * 1000
+      ) // 240 horas después de la compra
 
       // Crear transferencia pendiente (opcional - no bloquea el flujo si falla)
       try {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { calculateFinancialBreakdown } from '@/lib/utils/pricing'
 
 /**
  * Webhook handler para recibir notificaciones de Mercado Pago
@@ -72,15 +73,59 @@ export async function POST(request: NextRequest) {
         paymentStatus = 'refunded'
       }
 
+      // Obtener la compra actual para calcular gastos operativos
+      const { data: currentPurchase, error: fetchError } = await supabase
+        .from('purchases')
+        .select('base_amount, created_at')
+        .eq('id', purchaseId)
+        .single()
+
+      if (fetchError || !currentPurchase) {
+        console.error('Error obteniendo compra:', fetchError)
+        return NextResponse.json({ error: 'Error obteniendo compra' }, { status: 500 })
+      }
+
+      // Calcular desglose financiero completo según Manual V1
+      const purchaseDate = new Date(currentPurchase.created_at)
+      const financialBreakdown = calculateFinancialBreakdown(
+        Number(currentPurchase.base_amount),
+        purchaseDate
+      )
+
+      // Extraer información adicional del pago de Mercado Pago
+      // Nota: En producción, estos campos pueden variar según la configuración de MP
+      const mpNetAmount = payment.transaction_details?.net_received_amount || financialBreakdown.netAmount
+      const mpFee = payment.fee_details?.reduce((sum: number, fee: any) => sum + (fee.amount || 0), 0) || 0
+
+      // Preparar actualización de la compra
+      const updateData: any = {
+        payment_status: paymentStatus,
+        payment_provider_id: paymentId.toString(),
+        payment_provider_data: payment,
+        updated_at: new Date().toISOString(),
+      }
+
+      // Si el pago fue aprobado, actualizar campos financieros y settlement_status
+      if (paymentStatus === 'completed') {
+        updateData.settlement_status = 'ready' // Listo para transferir después de 240 horas
+        updateData.net_amount = financialBreakdown.netAmount
+        updateData.operating_costs = financialBreakdown.operatingCosts.total
+        updateData.mercadopago_commission = financialBreakdown.operatingCosts.mercadopagoCommission
+        updateData.iva_commission = financialBreakdown.operatingCosts.ivaCommission
+        updateData.iibb_retention = financialBreakdown.operatingCosts.iibbRetention
+        updateData.net_margin = financialBreakdown.netMargin
+        updateData.money_release_date = financialBreakdown.moneyReleaseDate.toISOString()
+        
+        // Si Mercado Pago proporciona información adicional, la guardamos
+        if (mpNetAmount && mpNetAmount !== financialBreakdown.netAmount) {
+          console.log(`⚠️ Diferencia en net_amount: Calculado: ${financialBreakdown.netAmount}, MP: ${mpNetAmount}`)
+        }
+      }
+
       // Actualizar la compra
       const { error: updateError } = await supabase
         .from('purchases')
-        .update({
-          payment_status: paymentStatus,
-          payment_provider_id: paymentId.toString(),
-          payment_provider_data: payment,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('id', purchaseId)
 
       if (updateError) {
@@ -89,6 +134,11 @@ export async function POST(request: NextRequest) {
       }
 
       console.log(`✅ Compra ${purchaseId} actualizada a estado: ${paymentStatus}`)
+      if (paymentStatus === 'completed') {
+        console.log(`💰 Gastos operativos: $${financialBreakdown.operatingCosts.total.toFixed(2)}`)
+        console.log(`💵 Margen neto: $${financialBreakdown.netMargin.toFixed(2)}`)
+        console.log(`📅 Fecha de liberación: ${financialBreakdown.moneyReleaseDate.toISOString()}`)
+      }
 
       // Si el pago fue aprobado, podemos enviar el email de tickets si aún no se envió
       if (paymentStatus === 'completed') {

@@ -58,10 +58,23 @@ export function usePurchases(userId?: string | null) {
         setError(null)
 
         // Obtener compras del usuario
+        // IMPORTANTE: Solo seleccionar campos públicos (sin datos financieros sensibles)
         const { data: purchasesData, error: purchasesError } = await supabase
           .from('purchases')
           .select(`
-            *,
+            id,
+            user_id,
+            guest_email,
+            guest_name,
+            guest_phone,
+            event_id,
+            total_amount,
+            base_amount,
+            commission_amount,
+            payment_method,
+            payment_status,
+            created_at,
+            updated_at,
             event:events(
               id,
               name,

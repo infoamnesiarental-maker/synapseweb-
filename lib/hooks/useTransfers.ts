@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { canTransfer, getRemainingHoursUntilTransfer } from '@/lib/utils/pricing'
 
 export interface Transfer {
   id: string
@@ -75,12 +76,55 @@ export function useTransfers(producerId?: string) {
 
   /**
    * Simula una transferencia (en producción esto se haría con Mercado Pago)
+   * Valida que haya pasado el plazo mínimo de 240 horas según Manual V1
    */
   async function processTransfer(transferId: string) {
     setLoading(true)
     setError(null)
 
     try {
+      // Obtener la transferencia con la información de la compra
+      const { data: transfer, error: fetchError } = await supabase
+        .from('transfers')
+        .select(`
+          *,
+          purchase:purchases(id, created_at, settlement_status, money_release_date)
+        `)
+        .eq('id', transferId)
+        .single()
+
+      if (fetchError || !transfer) {
+        throw new Error(`Error obteniendo transferencia: ${fetchError?.message}`)
+      }
+
+      // Validar plazo mínimo (240 horas = 10 días)
+      if (transfer.purchase && typeof transfer.purchase === 'object' && 'created_at' in transfer.purchase) {
+        const purchaseCreatedAt = transfer.purchase.created_at as string
+        
+        if (!canTransfer(purchaseCreatedAt)) {
+          const remainingHours = getRemainingHoursUntilTransfer(purchaseCreatedAt)
+          const remainingDays = Math.ceil(remainingHours / 24)
+          throw new Error(
+            `No se puede transferir aún. Faltan ${remainingHours} horas (${remainingDays} días) para cumplir el plazo mínimo de 240 horas desde la compra.`
+          )
+        }
+
+        // Verificar que el pago esté completado
+        const { data: purchase } = await supabase
+          .from('purchases')
+          .select('payment_status, settlement_status')
+          .eq('id', transfer.purchase_id)
+          .single()
+
+        if (purchase?.payment_status !== 'completed') {
+          throw new Error('No se puede transferir: el pago aún no está completado.')
+        }
+
+        if (purchase?.settlement_status !== 'ready') {
+          throw new Error('No se puede transferir: el pago aún no está listo para liquidar.')
+        }
+      }
+
       // En MVP, solo marcamos como completada
       // En producción, aquí se haría la transferencia real con Mercado Pago
       const { error: updateError } = await supabase
@@ -94,6 +138,14 @@ export function useTransfers(producerId?: string) {
 
       if (updateError) {
         throw new Error(`Error procesando transferencia: ${updateError.message}`)
+      }
+
+      // Actualizar settlement_status de la compra
+      if (transfer.purchase_id) {
+        await supabase
+          .from('purchases')
+          .update({ settlement_status: 'transferred' })
+          .eq('id', transfer.purchase_id)
       }
 
       // Refrescar lista

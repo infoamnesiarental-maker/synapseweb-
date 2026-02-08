@@ -88,9 +88,10 @@ export function useAnalytics(producerId: string | null, filters: AnalyticsFilter
         const eventsAnalyzed = eventIds.length
 
         // Obtener compras filtradas
+        // IMPORTANTE: Solo campos públicos (productores NO deben ver datos financieros internos)
         let purchasesQuery = supabase
           .from('purchases')
-          .select('id, base_amount, total_amount, created_at, event_id')
+          .select('id, base_amount, total_amount, commission_amount, created_at, event_id')
           .eq('payment_status', 'completed')
           .in('event_id', eventIds)
 
