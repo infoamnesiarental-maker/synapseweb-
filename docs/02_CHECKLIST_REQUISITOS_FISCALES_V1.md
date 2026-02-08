@@ -14,10 +14,17 @@ Este documento es tu **checklist obligatorio** para que el Manual de Operaciones
 
 ### 1.1 Alta en Monotributo ✅ OBLIGATORIO
 
-**¿Por qué es vital?**
-- Como Monotributista NO te corresponde retención de IVA ni de Ganancias
-- Sin esto, Mercado Pago te retiene ~23% adicional (IVA 21% + Ganancias 2%)
-- Esto eleva tus costos del 7.73% al ~22%
+**Actualización importante (Septiembre 2024):**
+- Desde el 1 de septiembre de 2024, ARCA eliminó las retenciones de IVA (21%) y Ganancias (2%) en Mercado Pago
+- Esto aplica incluso sin CUIT cargado
+- **Ya NO hay riesgo de costos al 22-31%** por falta de Monotributo/CUIT
+
+**¿Por qué aún es vital?**
+- Cumplimiento fiscal correcto ante AFIP
+- Mejor gestión de retenciones de IIBB (si aplican)
+- Identificación correcta de tu condición fiscal
+- Evita problemas futuros si cambian las políticas
+- Mejor experiencia y soporte de Mercado Pago
 
 **Requisitos:**
 - Mínimo categoría para servicios
@@ -84,12 +91,19 @@ Este documento es tu **checklist obligatorio** para que el Manual de Operaciones
 
 **Nota importante**: Como operás solo en Buenos Aires, no necesitás Convenio Multilateral. Solo necesitás estar inscripto en IIBB Buenos Aires (ARBA).
 
-### 2.1 Carga de CUIT en Mercado Pago ✅ OBLIGATORIO
+### 2.1 Carga de CUIT en Mercado Pago ⚠️ RECOMENDADO
 
-**¿Por qué es crítico?**
-- Si no cargás el CUIT, Mercado Pago asume que sos "Consumidor Final"
-- Te aplica retención de IVA (21%) y Ganancias (2%)
-- Esto eleva tus costos del 7.73% al ~31%
+**Actualización importante (Septiembre 2024):**
+- Desde el 1 de septiembre de 2024, ARCA eliminó las retenciones de IVA (21%) y Ganancias (2%) en Mercado Pago
+- Esto aplica incluso sin CUIT cargado
+- **Ya NO hay riesgo de costos al 31%** por falta de CUIT
+
+**¿Por qué aún es recomendable?**
+- Identificación correcta de tu negocio ante Mercado Pago
+- Mejor gestión de retenciones de IIBB (si aplican)
+- Configuración correcta de condición fiscal
+- Evita problemas futuros si cambian las políticas
+- Mejor experiencia y soporte de Mercado Pago
 
 **Dónde hacerlo:**
 - Panel de Mercado Pago: https://www.mercadopago.com.ar
@@ -284,16 +298,16 @@ del ticket."
 ## 7. Consecuencias de NO Cumplir
 
 ### Si NO tenés Monotributo:
-- ❌ Retención de IVA: 21%
-- ❌ Retención de Ganancias: 2%
-- ❌ **Total adicional: ~23%**
-- ❌ **Gastos operativos suben del 7.73% al ~31%**
-- ❌ **PÉRDIDA NETA INMEDIATA**
+- ⚠️ **Actualización (Sept 2024)**: Ya NO hay retenciones de IVA/Ganancias automáticas
+- ⚠️ Sin embargo, es obligatorio para cumplimiento fiscal ante AFIP
+- ⚠️ Puede afectar gestión de retenciones de IIBB
+- ⚠️ **Recomendado**: Tenerlo para configuración completa
 
 ### Si NO cargás CUIT en Mercado Pago:
-- ❌ MP te trata como "Consumidor Final"
-- ❌ Aplica retenciones automáticas
-- ❌ **Mismo resultado: gastos al ~31%**
+- ⚠️ **Actualización (Sept 2024)**: Ya NO hay retenciones de IVA/Ganancias automáticas
+- ⚠️ Sin embargo, es recomendable para identificación correcta
+- ⚠️ Puede afectar gestión de retenciones de IIBB
+- ⚠️ **Recomendado**: Tenerlo para configuración completa
 
 ### Si NO tenés cuenta bancaria "espejo":
 - ❌ Banco puede retener fondos
