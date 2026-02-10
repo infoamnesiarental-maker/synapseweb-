@@ -563,13 +563,9 @@ export default function MisComprasPage() {
           <div className="space-y-6">
             {purchases
               .filter((purchase) => {
-                // Filtrar pagos fallidos antiguos (más de 30 días)
-                if (purchase.payment_status === 'failed') {
-                  const purchaseDate = new Date(purchase.created_at)
-                  const daysSincePurchase = (Date.now() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24)
-                  return daysSincePurchase <= 30 // Mostrar solo fallidos de los últimos 30 días
-                }
-                return true // Mostrar todos los demás estados
+                // Ocultar completamente los pagos fallidos de la lista principal
+                // No tienen tickets y no aportan valor al usuario
+                return purchase.payment_status !== 'failed'
               })
               .map((purchase) => (
               <div
