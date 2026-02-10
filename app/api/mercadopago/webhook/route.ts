@@ -73,10 +73,10 @@ export async function POST(request: NextRequest) {
         paymentStatus = 'refunded'
       }
 
-      // Obtener la compra actual para calcular gastos operativos
+      // Obtener la compra actual para calcular gastos operativos y preservar tickets_data
       const { data: currentPurchase, error: fetchError } = await supabase
         .from('purchases')
-        .select('base_amount, created_at')
+        .select('base_amount, created_at, payment_provider_data')
         .eq('id', purchaseId)
         .single()
 
@@ -84,6 +84,9 @@ export async function POST(request: NextRequest) {
         console.error('Error obteniendo compra:', fetchError)
         return NextResponse.json({ error: 'Error obteniendo compra' }, { status: 500 })
       }
+
+      // Preservar tickets_data antes de actualizar payment_provider_data
+      const ticketsData = (currentPurchase.payment_provider_data as any)?.tickets_data
 
       // Calcular desglose financiero completo según Manual V1
       const purchaseDate = new Date(currentPurchase.created_at)
@@ -98,10 +101,14 @@ export async function POST(request: NextRequest) {
       const mpFee = payment.fee_details?.reduce((sum: number, fee: any) => sum + (fee.amount || 0), 0) || 0
 
       // Preparar actualización de la compra
+      // Preservar tickets_data cuando actualizamos payment_provider_data con datos de MP
       const updateData: any = {
         payment_status: paymentStatus,
         payment_provider_id: paymentId.toString(),
-        payment_provider_data: payment,
+        payment_provider_data: {
+          ...payment,
+          tickets_data: ticketsData, // Preservar tickets_data
+        },
         updated_at: new Date().toISOString(),
       }
 
@@ -189,8 +196,119 @@ export async function POST(request: NextRequest) {
         console.log(`ℹ️ No se encontró transferencia para la compra ${purchaseId} (puede ser normal si la transferencia aún no se creó)`)
       }
 
-      // Si el pago fue aprobado, podemos enviar el email de tickets si aún no se envió
+      // Si el pago fue aprobado, crear los tickets y enviar email
       if (paymentStatus === 'completed') {
+        // Verificar si ya existen tickets (para evitar duplicados)
+        const { data: existingTickets } = await supabase
+          .from('tickets')
+          .select('id')
+          .eq('purchase_id', purchaseId)
+          .limit(1)
+
+        // Solo crear tickets si no existen
+        if (!existingTickets || existingTickets.length === 0) {
+          // Obtener información de la compra para crear tickets
+          const { data: purchaseData, error: purchaseDataError } = await supabase
+            .from('purchases')
+            .select(`
+              id,
+              event_id,
+              user_id,
+              guest_email,
+              guest_name,
+              event:events(
+                id,
+                producer_id
+              )
+            `)
+            .eq('id', purchaseId)
+            .single()
+
+          if (purchaseDataError || !purchaseData) {
+            console.error('Error obteniendo datos de compra para crear tickets:', purchaseDataError)
+          } else {
+            // Obtener información de tickets comprados desde payment_provider_data
+            // ticketsData ya está disponible desde arriba (línea 89)
+            if (!ticketsData || !Array.isArray(ticketsData) || ticketsData.length === 0) {
+              console.error('No se encontraron datos de tickets en la compra')
+            } else {
+                const ticketsToInsert = []
+
+                // Crear tickets según los datos guardados
+                for (const ticketData of ticketsData) {
+                  // Obtener información del ticket type
+                  const { data: ticketType, error: ticketTypeError } = await supabase
+                    .from('ticket_types')
+                    .select('*')
+                    .eq('id', ticketData.ticketTypeId)
+                    .single()
+
+                  if (ticketTypeError || !ticketType) {
+                    console.error(`Error obteniendo tipo de ticket ${ticketData.ticketTypeId}:`, ticketTypeError)
+                    continue
+                  }
+
+                  // Verificar disponibilidad
+                  const available = ticketType.quantity_available - ticketType.quantity_sold
+                  if (available < ticketData.quantity) {
+                    console.error(`No hay suficientes tickets disponibles para ${ticketType.name}`)
+                    continue
+                  }
+
+                  // Crear un ticket por cada cantidad
+                  for (let i = 0; i < ticketData.quantity; i++) {
+                    const ticketId = crypto.randomUUID()
+                    
+                    // Generar ticket_number
+                    const eventPrefix = purchaseData.event_id.substring(0, 8).toUpperCase()
+                    const ticketNumber = `EVT-${eventPrefix}-${String(Date.now()).slice(-6)}-${String(i + 1).padStart(3, '0')}`
+                    
+                    // Generar QR code
+                    const qrCode = `SYN-${ticketId.substring(0, 8).toUpperCase()}-${crypto.randomUUID().substring(0, 8).toUpperCase()}`
+                    
+                    // Generar QR hash
+                    const qrHashBuffer = await crypto.subtle.digest(
+                      'SHA-256',
+                      new TextEncoder().encode(`${ticketId}${qrCode}${Date.now()}`)
+                    )
+                    const qrHashArray = Array.from(new Uint8Array(qrHashBuffer))
+                    const qrHash = qrHashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+
+                    ticketsToInsert.push({
+                      purchase_id: purchaseId,
+                      ticket_type_id: ticketData.ticketTypeId,
+                      event_id: purchaseData.event_id,
+                      ticket_number: ticketNumber,
+                      qr_code: qrCode,
+                      qr_hash: qrHash,
+                      status: 'valid',
+                    })
+                  }
+
+                  // Actualizar cantidad vendida del ticket type
+                  await supabase
+                    .from('ticket_types')
+                    .update({ quantity_sold: ticketType.quantity_sold + ticketData.quantity })
+                    .eq('id', ticketType.id)
+                }
+
+                // Insertar todos los tickets
+                if (ticketsToInsert.length > 0) {
+                  const { error: ticketsInsertError } = await supabase
+                    .from('tickets')
+                    .insert(ticketsToInsert)
+
+                  if (ticketsInsertError) {
+                    console.error('Error creando tickets:', ticketsInsertError)
+                  } else {
+                    console.log(`✅ ${ticketsToInsert.length} tickets creados para compra ${purchaseId}`)
+                  }
+                }
+              }
+            }
+          }
+        }
+
         // Verificar si ya se envió el email (esto se puede mejorar con un flag)
         const { data: purchase } = await supabase
           .from('purchases')
@@ -213,6 +331,44 @@ export async function POST(request: NextRequest) {
           }).catch((err) => {
             console.warn('Error enviando email (no crítico):', err)
           })
+        }
+      } else if (paymentStatus === 'failed') {
+        // Si el pago falló, eliminar o marcar como inválidos los tickets existentes
+        const { data: existingTickets } = await supabase
+          .from('tickets')
+          .select('id, ticket_type_id')
+          .eq('purchase_id', purchaseId)
+
+        if (existingTickets && existingTickets.length > 0) {
+          // Eliminar los tickets (no deberían existir, pero por si acaso)
+          const { error: deleteError } = await supabase
+            .from('tickets')
+            .delete()
+            .eq('purchase_id', purchaseId)
+
+          if (deleteError) {
+            console.error('Error eliminando tickets de pago fallido:', deleteError)
+          } else {
+            console.log(`✅ Tickets eliminados para compra fallida ${purchaseId}`)
+            
+            // Revertir cantidad vendida de los ticket types
+            for (const ticket of existingTickets) {
+              if (ticket.ticket_type_id) {
+                const { data: ticketType } = await supabase
+                  .from('ticket_types')
+                  .select('quantity_sold')
+                  .eq('id', ticket.ticket_type_id)
+                  .single()
+
+                if (ticketType && ticketType.quantity_sold > 0) {
+                  await supabase
+                    .from('ticket_types')
+                    .update({ quantity_sold: ticketType.quantity_sold - 1 })
+                    .eq('id', ticket.ticket_type_id)
+                }
+              }
+            }
+          }
         }
       }
 

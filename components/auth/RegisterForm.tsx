@@ -36,11 +36,17 @@ export default function RegisterForm() {
     }
 
     try {
+      // Obtener URL de la app para redirección después de confirmar email
+      const appUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      
       // Crear usuario en Supabase Auth
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          emailRedirectTo: `${appUrl}/auth/callback`,
           data: {
             full_name: fullName,
             phone: phone,

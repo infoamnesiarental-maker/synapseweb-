@@ -54,6 +54,14 @@ export function useCheckout() {
       const purchaseDate = new Date() // Fecha actual (cuando se crea la compra)
       const financialBreakdown = calculateFinancialBreakdown(totalBreakdown.basePrice, purchaseDate)
 
+      // Guardar información de los tickets comprados para crearlos después en el webhook
+      const ticketsData = params.tickets.map(t => ({
+        ticketTypeId: t.ticketTypeId,
+        ticketTypeName: t.ticketTypeName,
+        quantity: t.quantity,
+        basePrice: t.basePrice,
+      }))
+
       // Crear la compra con todos los campos financieros
       const { data: purchase, error: purchaseError } = await supabase
         .from('purchases')
@@ -78,6 +86,10 @@ export function useCheckout() {
           settlement_status: 'pending',
           payment_method: 'mercadopago',
           payment_status: 'pending',
+          // Guardar información de tickets en payment_provider_data para crearlos después
+          payment_provider_data: {
+            tickets_data: ticketsData,
+          },
         })
         .select()
         .single()
@@ -86,67 +98,9 @@ export function useCheckout() {
         throw new Error(`Error creando compra: ${purchaseError.message}`)
       }
 
-      // Crear los tickets
-      const ticketsToInsert = []
-      
-      for (const ticket of params.tickets) {
-        // Obtener información del ticket type
-        const { data: ticketType, error: ticketTypeError } = await supabase
-          .from('ticket_types')
-          .select('*')
-          .eq('id', ticket.ticketTypeId)
-          .single()
-
-        if (ticketTypeError || !ticketType) {
-          throw new Error(`Error obteniendo tipo de ticket: ${ticketTypeError?.message}`)
-        }
-
-        // Verificar disponibilidad
-        const available = ticketType.quantity_available - ticketType.quantity_sold
-        if (available < ticket.quantity) {
-          throw new Error(`No hay suficientes tickets disponibles para ${ticketType.name}`)
-        }
-
-        // Crear un ticket por cada cantidad
-        for (let i = 0; i < ticket.quantity; i++) {
-          const ticketId = crypto.randomUUID()
-          
-          // Generar ticket_number
-          const eventPrefix = params.eventId.substring(0, 8).toUpperCase()
-          const ticketNumber = `EVT-${eventPrefix}-${String(Date.now()).slice(-6)}-${String(i + 1).padStart(3, '0')}`
-          
-          // Generar QR code
-          const qrCode = `SYN-${ticketId.substring(0, 8).toUpperCase()}-${crypto.randomUUID().substring(0, 8).toUpperCase()}`
-          
-          // Generar QR hash (simplificado)
-          const qrHash = await crypto.subtle.digest(
-            'SHA-256',
-            new TextEncoder().encode(`${ticketId}${qrCode}${Date.now()}`)
-          ).then((hashBuffer) => {
-            const hashArray = Array.from(new Uint8Array(hashBuffer))
-            return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
-          })
-
-          ticketsToInsert.push({
-            purchase_id: purchase.id,
-            ticket_type_id: ticket.ticketTypeId,
-            event_id: params.eventId,
-            ticket_number: ticketNumber,
-            qr_code: qrCode,
-            qr_hash: qrHash,
-            status: 'valid',
-          })
-        }
-      }
-
-      // Insertar todos los tickets
-      const { error: ticketsError } = await supabase
-        .from('tickets')
-        .insert(ticketsToInsert)
-
-      if (ticketsError) {
-        throw new Error(`Error creando tickets: ${ticketsError.message}`)
-      }
+      // ⚠️ IMPORTANTE: NO crear tickets aquí
+      // Los tickets se crearán SOLO cuando el webhook confirme que el pago fue completado
+      // Esto previene que se generen tickets para pagos rechazados
 
       // Crear registro de transferencia pendiente
       // Primero obtener el producer_id del evento

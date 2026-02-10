@@ -626,7 +626,8 @@ export default function MisComprasPage() {
 
                       {/* Tickets Grid */}
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {purchase.tickets.map((ticket) => {
+                        {/* Solo mostrar tickets si el pago está completado */}
+                        {purchase.payment_status === 'completed' && purchase.tickets.map((ticket) => {
                           const isRefunded = ticket.status === 'refunded'
                           const refundInfo = refundsByPurchase[purchase.id]?.find((r: any) => 
                             !r.ticket_id || r.ticket_id === ticket.id
@@ -726,6 +727,11 @@ export default function MisComprasPage() {
                             </div>
                           )
                         })}
+                        {purchase.payment_status !== 'completed' && (
+                          <div className="col-span-2 text-center py-8 text-white/60">
+                            <p>No hay tickets disponibles. El pago no fue completado.</p>
+                          </div>
+                        )}
                       </div>
                     </div>
 

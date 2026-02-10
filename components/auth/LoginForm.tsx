@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
 export default function LoginForm() {
@@ -10,8 +10,32 @@ export default function LoginForm() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
+
+  // Leer mensajes de la URL (confirmación de email, registro exitoso, etc.)
+  useEffect(() => {
+    const confirmed = searchParams.get('confirmed')
+    const registered = searchParams.get('registered')
+    const errorParam = searchParams.get('error')
+    const message = searchParams.get('message')
+
+    if (confirmed === 'true') {
+      setSuccess(message || 'Email confirmado exitosamente. Ya podés iniciar sesión.')
+      // Limpiar la URL
+      router.replace('/login', { scroll: false })
+    } else if (registered === 'true') {
+      setSuccess('Registro exitoso. Por favor, verifica tu email para activar tu cuenta.')
+      // Limpiar la URL
+      router.replace('/login', { scroll: false })
+    } else if (errorParam) {
+      setError(message || 'Ocurrió un error. Por favor, intentá nuevamente.')
+      // Limpiar la URL
+      router.replace('/login', { scroll: false })
+    }
+  }, [searchParams, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -56,6 +80,11 @@ export default function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-7">
+      {success && (
+        <div className="bg-[#10B981]/10 border border-[#10B981]/50 text-[#10B981] px-6 py-4 rounded-2xl text-sm font-medium backdrop-blur-sm">
+          {success}
+        </div>
+      )}
       {error && (
         <div className="bg-[#EF4444]/10 border border-[#EF4444]/50 text-[#EF4444] px-6 py-4 rounded-2xl text-sm font-medium backdrop-blur-sm">
           {error}
