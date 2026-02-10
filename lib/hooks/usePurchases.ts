@@ -73,6 +73,7 @@ export function usePurchases(userId?: string | null) {
             commission_amount,
             payment_method,
             payment_status,
+            payment_provider_id,
             created_at,
             updated_at,
             event:events(

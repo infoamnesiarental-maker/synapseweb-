@@ -24,6 +24,41 @@ function CheckoutContent() {
   const [submitted, setSubmitted] = useState(false)
 
   useEffect(() => {
+    // Verificar si hay error de pago en la URL
+    const errorParam = searchParams.get('error')
+    const purchaseIdParam = searchParams.get('purchaseId')
+
+    if (errorParam === 'payment_failed' && purchaseIdParam) {
+      // Si el pago falló, verificar el estado en Mercado Pago y actualizar
+      async function updatePaymentStatus() {
+        try {
+          const response = await fetch('/api/mercadopago/check-payment-status', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              purchaseId: purchaseIdParam,
+            }),
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            // Redirigir a mis-compras para ver el estado actualizado
+            router.push('/mis-compras')
+            return
+          }
+        } catch (error) {
+          console.error('Error verificando estado de pago:', error)
+        }
+        // Si falla la verificación, igual redirigir a mis-compras
+        router.push('/mis-compras')
+      }
+
+      updatePaymentStatus()
+      return
+    }
+
     // Obtener datos del query string
     const ticketsParam = searchParams.get('tickets')
     const eventIdParam = searchParams.get('eventId')

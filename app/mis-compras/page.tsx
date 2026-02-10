@@ -53,6 +53,50 @@ export default function MisComprasPage() {
     }
   }, [authLoading, isAuthenticated, router])
 
+  // Verificar estado de pagos pendientes con Mercado Pago
+  useEffect(() => {
+    if (!user?.id || purchases.length === 0) return
+
+    async function checkPendingPayments() {
+      // Buscar compras pendientes que tengan payment_provider_id (ya fueron a Mercado Pago)
+      const pendingPurchases = purchases.filter(
+        p => p.payment_status === 'pending' && p.payment_provider_id
+      )
+
+      if (pendingPurchases.length === 0) return
+
+      // Verificar cada compra pendiente
+      for (const purchase of pendingPurchases) {
+        try {
+          const response = await fetch('/api/mercadopago/check-payment-status', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              purchaseId: purchase.id,
+            }),
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            // Si el estado cambió, recargar las compras
+            if (data.updated && data.paymentStatus !== 'pending') {
+              // Forzar recarga de compras
+              window.location.reload()
+            }
+          }
+        } catch (error) {
+          console.warn(`Error verificando estado de pago para compra ${purchase.id}:`, error)
+        }
+      }
+    }
+
+    // Verificar después de 3 segundos (dar tiempo al webhook)
+    const timeout = setTimeout(checkPendingPayments, 3000)
+    return () => clearTimeout(timeout)
+  }, [user?.id, purchases])
+
   // Obtener información de devoluciones aprobadas
   useEffect(() => {
     if (!user?.id || purchases.length === 0) return
