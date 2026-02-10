@@ -181,40 +181,58 @@ export default function DashboardPage() {
         </div>
 
         {/* Transferencias Recientes */}
-        {transfers.length > 0 && (
-          <div className="bg-mediumGray rounded-2xl p-6 border border-[#2F2F2F] mb-8">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold uppercase tracking-wide">
-                Transferencias Recientes
-              </h2>
-              <Link
-                href="/dashboard/transferencias"
-                className="text-purple-400 hover:text-purple-300 text-sm font-semibold"
-              >
-                Ver todas →
-              </Link>
+        <div className="bg-mediumGray rounded-2xl p-6 border border-[#2F2F2F] mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold uppercase tracking-wide">
+              Transferencias Recientes
+            </h2>
+            <Link
+              href="/dashboard/transferencias"
+              className="text-purple-400 hover:text-purple-300 text-sm font-semibold"
+            >
+              Ver todas →
+            </Link>
+          </div>
+          
+          {transfersLoading ? (
+            <div className="text-center py-8 text-lightGray">
+              <p>Cargando transferencias...</p>
             </div>
-            <div className="space-y-3">
-              {transfers
-                .filter((transfer) => {
-                  // Filtrar basándose en mp_status (estado de Mercado Pago)
-                  // Solo mostrar si Mercado Pago dice: approved, pending, refunded, charged_back
-                  // NO mostrar si Mercado Pago dice: rejected, cancelled
-                  const mpStatus = transfer.mp_status
-                  
-                  if (!mpStatus) {
-                    // Si no hay mp_status, usar nuestro estado interno como fallback
-                    return transfer.status !== 'failed'
-                  }
-                  
-                  // Mostrar según estado de Mercado Pago
-                  return mpStatus === 'approved' || 
-                         mpStatus === 'pending' || 
-                         mpStatus === 'refunded' || 
-                         mpStatus === 'charged_back'
-                })
-                .slice(0, 5)
-                .map((transfer) => {
+          ) : (() => {
+            // Filtrar transferencias basándose en mp_status
+            const filteredTransfers = transfers.filter((transfer) => {
+              // Filtrar basándose en mp_status (estado de Mercado Pago)
+              // Solo mostrar si Mercado Pago dice: approved, pending, refunded, charged_back
+              // NO mostrar si Mercado Pago dice: rejected, cancelled
+              const mpStatus = transfer.mp_status
+              
+              if (!mpStatus) {
+                // Si no hay mp_status, usar nuestro estado interno como fallback
+                return transfer.status !== 'failed'
+              }
+              
+              // Mostrar según estado de Mercado Pago
+              return mpStatus === 'approved' || 
+                     mpStatus === 'pending' || 
+                     mpStatus === 'refunded' || 
+                     mpStatus === 'charged_back'
+            })
+
+            if (filteredTransfers.length === 0) {
+              return (
+                <div className="text-center py-8 text-lightGray">
+                  <p className="font-semibold mb-1">Todavía no tenés transferencias.</p>
+                  <p className="text-sm">
+                    Cuando empieces a vender tickets y se cumplan las condiciones de transferencia,
+                    vas a ver todas tus transferencias acá.
+                  </p>
+                </div>
+              )
+            }
+
+            return (
+              <div className="space-y-3">
+                {filteredTransfers.slice(0, 5).map((transfer) => {
                   // Usar mp_status para mostrar, pero mantener transfer.status para lógica
                   const displayStatus = transfer.mp_status || transfer.status
                   const statusLabel = 
@@ -270,9 +288,10 @@ export default function DashboardPage() {
                     </div>
                   )
                 })}
-            </div>
-          </div>
-        )}
+              </div>
+            )
+          })()}
+        </div>
 
         {/* Quick Actions */}
         <div className="bg-mediumGray rounded-2xl p-6 border border-[#2F2F2F]">
