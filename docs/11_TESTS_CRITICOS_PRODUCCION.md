@@ -279,17 +279,18 @@ WHERE r.id = 'ID_DEL_REEMBOLSO';
 
 ---
 
-## 🔴 TEST 12: Webhook con Estado Refunded
+## 🔴 TEST 12: Webhook con Estado Refunded ⭐ ACTUALIZADO
 
-**Objetivo:** Verificar que cuando Mercado Pago procesa un reembolso, el webhook actualiza correctamente el estado.
+**Objetivo:** Verificar que cuando Mercado Pago procesa un reembolso, el webhook actualiza correctamente el estado y la transferencia.
 
-**Por qué es crítico:** Si el reembolso se procesa directamente en Mercado Pago (no desde nuestra app), el webhook debe sincronizar el estado.
+**Por qué es crítico:** Si el reembolso se procesa directamente en Mercado Pago (no desde nuestra app), el webhook debe sincronizar el estado y cancelar la transferencia.
 
 **Pasos:**
-1. Realizar una compra y pagarla
-2. En Mercado Pago (panel web), procesar un reembolso manualmente
-3. Esperar a que el webhook se ejecute (puede tardar unos minutos)
-4. Verificar que el estado se actualizó
+1. Realizar un pago exitoso (TEST 5)
+2. Verificar que se creó la transferencia (TEST 16)
+3. En Mercado Pago (panel web), procesar un reembolso manualmente
+4. Esperar a que el webhook se ejecute (puede tardar unos minutos)
+5. Verificar que el estado se actualizó y la transferencia se canceló
 
 **Qué verificar:**
 
@@ -297,6 +298,7 @@ WHERE r.id = 'ID_DEL_REEMBOLSO';
 - [ ] Webhook recibido con `type: 'payment'`
 - [ ] `payment.status` = 'refunded' o 'charged_back'
 - [ ] Log: `✅ Compra X actualizada a estado: refunded`
+- [ ] Log: `✅ Transferencia X marcada como 'cancelled' debido a reembolso` ⭐ NUEVO
 
 **En Supabase:**
 ```sql
