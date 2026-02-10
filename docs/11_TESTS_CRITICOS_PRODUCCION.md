@@ -18,14 +18,16 @@ Esta guía cubre todos los tests fundamentales y necesarios para usar el softwar
 - ✅ TEST 7: Validación plazo mínimo
 
 ### Tests Críticos Adicionales (Esta guía)
-- 🔴 **TEST 8: Pago rechazado/fallido**
+- 🔴 **TEST 8: Pago rechazado/fallido** ⭐ ACTUALIZADO
 - 🔴 **TEST 9: Reembolsos - Derecho de arrepentimiento**
 - 🔴 **TEST 10: Reembolsos - Cancelación de evento**
 - 🔴 **TEST 11: Reembolsos - Cambio de fecha/lugar**
-- 🔴 **TEST 12: Webhook con estado refunded**
+- 🔴 **TEST 12: Webhook con estado refunded** ⭐ ACTUALIZADO
 - 🔴 **TEST 13: Validación de seguridad (RLS)**
 - 🔴 **TEST 14: Edge cases - Pagos duplicados**
 - 🔴 **TEST 15: Edge cases - Webhook sin external_reference**
+- 🔴 **TEST 16: Creación de transferencias** ⭐ NUEVO
+- 🔴 **TEST 17: Transferencias y reembolsos** ⭐ NUEVO
 
 ---
 
@@ -77,9 +79,11 @@ LIMIT 1;
 - [ ] Log: `✅ Compra X actualizada a estado: failed`
 
 **⚠️ IMPORTANTE:**
-- Si el pago falla, NO se deben generar tickets
-- Si el pago falla, NO se deben calcular gastos operativos
+- Si el pago falla, NO se deben generar tickets ✅
+- Si el pago falla, NO se deben calcular gastos operativos ✅
+- Si el pago falla, NO se debe crear transferencia ✅ (NUEVO)
 - El usuario debe poder intentar pagar nuevamente
+- En "Mis Compras", el pago fallido NO debe aparecer (se oculta automáticamente) ✅ (NUEVO)
 
 ---
 
@@ -433,6 +437,134 @@ WHERE id = 'ID_DE_LA_COMPRA';
 
 ---
 
+## 🔴 TEST 16: Creación de Transferencias ⭐ NUEVO
+
+**Objetivo:** Verificar que las transferencias se crean SOLO cuando el pago se complete.
+
+**Por qué es crítico:** Con el nuevo flujo, las transferencias solo deben existir para pagos exitosos. No deben crearse para pagos fallidos.
+
+**Pasos:**
+1. Realizar un pago exitoso (TEST 5)
+2. Verificar que se creó la transferencia automáticamente
+3. Realizar un pago fallido (TEST 8)
+4. Verificar que NO se creó transferencia
+
+**Qué verificar:**
+
+**En Supabase (Pago Exitoso):**
+```sql
+-- Verificar que se creó la transferencia
+SELECT 
+  t.id as transfer_id,
+  t.status as transfer_status,
+  t.amount as transfer_amount,
+  t.scheduled_at,
+  p.id as purchase_id,
+  p.payment_status,
+  p.base_amount,
+  e.name as event_name
+FROM transfers t
+INNER JOIN purchases p ON t.purchase_id = p.id
+INNER JOIN events e ON t.event_id = e.id
+WHERE p.id = 'ID_DE_LA_COMPRA_EXITOSA';
+```
+
+**Resultados esperados (Pago Exitoso):**
+- ✅ `transfer_id`: Debe existir (transferencia creada)
+- ✅ `transfer_status`: "pending"
+- ✅ `transfer_amount`: Debe ser igual a `base_amount` (precio base de productora)
+- ✅ `scheduled_at`: Debe ser 240 horas (10 días) después de `purchase.created_at`
+- ✅ `payment_status`: "completed"
+
+**En Supabase (Pago Fallido):**
+```sql
+-- Verificar que NO se creó transferencia
+SELECT 
+  COUNT(*) as transferencias_creadas
+FROM transfers t
+INNER JOIN purchases p ON t.purchase_id = p.id
+WHERE p.id = 'ID_DE_LA_COMPRA_FALLIDA';
+```
+
+**Resultados esperados (Pago Fallido):**
+- ✅ `transferencias_creadas`: 0 (NO debe haber transferencia)
+- ✅ `payment_status`: "failed"
+
+**En Dashboard de Productora:**
+- [ ] Solo aparecen transferencias de pagos exitosos
+- [ ] NO aparecen transferencias de pagos fallidos
+- [ ] El monto de la transferencia es correcto (precio base)
+
+**En logs de Vercel (Pago Exitoso):**
+- [ ] Log: `✅ Transferencia creada para compra X`
+- [ ] Log: `✅ X tickets creados para compra X`
+
+**En logs de Vercel (Pago Fallido):**
+- [ ] NO debe aparecer: "Transferencia creada"
+- [ ] NO debe aparecer: "tickets creados"
+
+**⚠️ IMPORTANTE:**
+- Las transferencias SOLO se crean cuando `paymentStatus === 'completed'`
+- Las transferencias NO se crean en el checkout (solo en el webhook)
+- Si el webhook se ejecuta dos veces, no debe crear transferencias duplicadas (idempotencia)
+- El monto de la transferencia es el `base_amount` (precio base de productora, sin comisión)
+
+---
+
+## 🔴 TEST 17: Transferencias y Reembolsos ⭐ NUEVO
+
+**Objetivo:** Verificar que cuando se procesa un reembolso, la transferencia se marca como 'cancelled'.
+
+**Por qué es crítico:** Si se reembolsa un pago, la transferencia no debe procesarse. Debe estar cancelada.
+
+**Pasos:**
+1. Realizar un pago exitoso (TEST 5)
+2. Verificar que se creó la transferencia (TEST 16)
+3. Procesar un reembolso (TEST 9, 10 o 11)
+4. Verificar que la transferencia se marcó como 'cancelled'
+
+**Qué verificar:**
+
+**En Supabase:**
+```sql
+-- Verificar estado de transferencia después del reembolso
+SELECT 
+  t.id as transfer_id,
+  t.status as transfer_status,
+  t.updated_at as transfer_updated_at,
+  p.id as purchase_id,
+  p.payment_status as purchase_status,
+  p.updated_at as purchase_updated_at
+FROM transfers t
+INNER JOIN purchases p ON t.purchase_id = p.id
+WHERE p.id = 'ID_DE_LA_COMPRA_REEMBOLSADA';
+```
+
+**Resultados esperados:**
+- ✅ `transfer_status`: "cancelled"
+- ✅ `purchase_status`: "refunded"
+- ✅ `transfer_updated_at`: Debe ser después del reembolso
+
+**En Dashboard de Productora:**
+- [ ] La transferencia aparece como "Cancelada" (gris)
+- [ ] NO aparece el botón "Procesar transferencia"
+- [ ] El monto sigue visible pero marcado como cancelado
+
+**En logs de Vercel:**
+- [ ] Log: `✅ Transferencia X marcada como 'cancelled' debido a reembolso`
+
+**Verificar también en webhook de Mercado Pago:**
+Si Mercado Pago procesa un reembolso directamente (no desde nuestra app), el webhook debe:
+- [ ] Actualizar `payment_status` a "refunded"
+- [ ] Marcar transferencia como "cancelled"
+
+**⚠️ IMPORTANTE:**
+- Las transferencias de reembolsos deben estar en estado 'cancelled'
+- NO se debe poder procesar una transferencia cancelada
+- El reembolso puede venir desde nuestra app (admin) o desde Mercado Pago (webhook)
+
+---
+
 ## 📊 Resumen de Tests Críticos
 
 | Test | Descripción | Crítico | Prioridad | Estado |
@@ -445,6 +577,8 @@ WHERE id = 'ID_DE_LA_COMPRA';
 | TEST 13 | Validación seguridad (RLS) | 🔴 Sí | Alta | [ ] |
 | TEST 14 | Edge cases - Pagos duplicados | ⚠️ Medio | Baja | [ ] |
 | TEST 15 | Edge cases - Webhook sin referencia | ⚠️ Medio | Baja | [ ] |
+| TEST 16 | Creación de transferencias | 🔴 Sí | Alta | [ ] |
+| TEST 17 | Transferencias y reembolsos | 🔴 Sí | Alta | [ ] |
 
 ---
 
@@ -472,8 +606,9 @@ WHERE id = 'ID_DE_LA_COMPRA';
 
 ### TEST 20: Transferencia a Productor
 - **Objetivo:** Verificar que las transferencias a productores funcionan después de 240 horas
-- **Prioridad:** Alta (cuando implementes transferencias)
-- **Cuándo hacerlo:** Cuando tengas la funcionalidad de transferencias
+- **Prioridad:** Alta
+- **Cuándo hacerlo:** Cuando tengas la funcionalidad de transferencias reales (actualmente es manual)
+- **Nota:** Las transferencias ya se crean automáticamente (TEST 16), pero el procesamiento real aún es manual
 
 ---
 
@@ -485,14 +620,16 @@ Antes de usar el software en producción, verificá que:
 - [ ] TEST 1-7 completados (ver `10_GUIA_TESTEO_PRODUCCION.md`)
 
 ### Tests Críticos
-- [ ] TEST 8: Pago rechazado funciona
+- [ ] TEST 8: Pago rechazado funciona (NO crea transferencia)
 - [ ] TEST 9: Reembolso derecho de arrepentimiento funciona
 - [ ] TEST 10: Reembolso cancelación funciona
 - [ ] TEST 11: Reembolso cambio fecha/lugar funciona
-- [ ] TEST 12: Webhook refunded funciona
+- [ ] TEST 12: Webhook refunded funciona (cancela transferencia)
 - [ ] TEST 13: RLS funciona correctamente
 - [ ] TEST 14: Pagos duplicados manejados
 - [ ] TEST 15: Webhook sin referencia manejado
+- [ ] TEST 16: Transferencias se crean solo en pagos exitosos
+- [ ] TEST 17: Transferencias se cancelan en reembolsos
 
 ### Validaciones Adicionales
 - [ ] No hay errores en logs de Vercel
