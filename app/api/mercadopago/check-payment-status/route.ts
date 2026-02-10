@@ -20,10 +20,10 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // Obtener la compra
+    // Obtener la compra (incluyendo payment_provider_data para preservar tickets_data)
     const { data: purchase, error: purchaseError } = await supabase
       .from('purchases')
-      .select('payment_provider_id, payment_status')
+      .select('payment_provider_id, payment_status, payment_provider_data')
       .eq('id', purchaseId)
       .single()
 
@@ -33,6 +33,10 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       )
     }
+
+    // Preservar tickets_data antes de actualizar payment_provider_data
+    // Esto es crítico: si el webhook aún no llegó, tickets_data debe preservarse
+    const ticketsData = (purchase.payment_provider_data as any)?.tickets_data
 
     const mpAccessToken = process.env.MERCADOPAGO_ACCESS_TOKEN
 
@@ -96,12 +100,23 @@ export async function POST(request: NextRequest) {
 
       // Si el estado cambió, actualizar en la base de datos
       if (paymentStatus !== purchase.payment_status) {
+        // Preservar tickets_data al actualizar payment_provider_data
+        // Esto evita que se pierda la información necesaria para crear tickets cuando llegue el webhook
+        const updatedPaymentProviderData: any = {
+          ...payment,
+        }
+        
+        // Solo preservar tickets_data si existe (puede ser null si el webhook ya lo procesó)
+        if (ticketsData) {
+          updatedPaymentProviderData.tickets_data = ticketsData
+        }
+
         await supabase
           .from('purchases')
           .update({
             payment_status: paymentStatus,
             payment_provider_id: payment.id?.toString() || purchase.payment_provider_id,
-            payment_provider_data: payment,
+            payment_provider_data: updatedPaymentProviderData,
             updated_at: new Date().toISOString(),
           })
           .eq('id', purchaseId)
