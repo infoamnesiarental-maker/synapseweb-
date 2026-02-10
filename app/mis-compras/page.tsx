@@ -318,8 +318,8 @@ export default function MisComprasPage() {
         )
       case 'failed':
         return (
-          <span className="px-4 py-1.5 bg-red/20 text-red border border-red/40 rounded-full text-xs font-semibold uppercase flex items-center gap-2">
-            <XCircle className="w-3.5 h-3.5" />
+          <span className="px-4 py-1.5 bg-red-500/20 text-red-400 border-2 border-red-500/50 rounded-full text-xs font-bold uppercase flex items-center gap-2 shadow-[0_0_8px_rgba(239,68,68,0.3)]">
+            <XCircle className="w-4 h-4 text-red-400" />
             Fallido
           </span>
         )
