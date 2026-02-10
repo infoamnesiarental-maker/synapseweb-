@@ -140,6 +140,55 @@ export async function POST(request: NextRequest) {
         console.log(`📅 Fecha de liberación: ${financialBreakdown.moneyReleaseDate.toISOString()}`)
       }
 
+      // Actualizar estado de la transferencia asociada según el resultado del pago
+      // Buscar la transferencia asociada a esta compra
+      const { data: transfer, error: transferFetchError } = await supabase
+        .from('transfers')
+        .select('id, status')
+        .eq('purchase_id', purchaseId)
+        .maybeSingle()
+
+      if (transferFetchError) {
+        console.warn('⚠️ Error obteniendo transferencia (no crítico):', transferFetchError)
+      } else if (transfer) {
+        // Actualizar estado de la transferencia según el resultado del pago
+        let transferStatus: 'pending' | 'completed' | 'failed' | 'cancelled' = transfer.status
+
+        if (paymentStatus === 'completed') {
+          // Si el pago se completó, la transferencia sigue en 'pending'
+          // hasta que se procese manualmente después de 240 horas
+          // No cambiamos el estado aquí, solo nos aseguramos de que esté en 'pending'
+          if (transfer.status !== 'pending' && transfer.status !== 'completed') {
+            transferStatus = 'pending'
+          }
+        } else if (paymentStatus === 'failed') {
+          // Si el pago falló, marcar la transferencia como 'failed'
+          transferStatus = 'failed'
+        } else if (paymentStatus === 'refunded') {
+          // Si el pago fue reembolsado, marcar la transferencia como 'cancelled'
+          transferStatus = 'cancelled'
+        }
+
+        // Solo actualizar si el estado cambió
+        if (transferStatus !== transfer.status) {
+          const { error: transferUpdateError } = await supabase
+            .from('transfers')
+            .update({
+              status: transferStatus,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', transfer.id)
+
+          if (transferUpdateError) {
+            console.warn('⚠️ Error actualizando transferencia (no crítico):', transferUpdateError)
+          } else {
+            console.log(`✅ Transferencia ${transfer.id} actualizada a estado: ${transferStatus}`)
+          }
+        }
+      } else {
+        console.log(`ℹ️ No se encontró transferencia para la compra ${purchaseId} (puede ser normal si la transferencia aún no se creó)`)
+      }
+
       // Si el pago fue aprobado, podemos enviar el email de tickets si aún no se envió
       if (paymentStatus === 'completed') {
         // Verificar si ya se envió el email (esto se puede mejorar con un flag)
