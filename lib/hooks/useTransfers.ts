@@ -67,69 +67,9 @@ export function useTransfers(producerId?: string) {
         throw new Error(`Error obteniendo transferencias: ${fetchError.message}`)
       }
 
-      // Sincronizar estado de transferencias con estado del pago
-      const transfersWithSyncedStatus = await Promise.all(
-        (data || []).map(async (transfer: any) => {
-          const purchase = transfer.purchase
-          
-          // Si hay un pago asociado, sincronizar el estado
-          if (purchase && purchase.payment_status) {
-            let correctStatus = transfer.status
-
-            // Si el pago falló, la transferencia debe estar en 'failed'
-            if (purchase.payment_status === 'failed' && transfer.status !== 'failed') {
-              correctStatus = 'failed'
-              
-              // Actualizar en la BD (solo si cambió)
-              await supabase
-                .from('transfers')
-                .update({
-                  status: 'failed',
-                  updated_at: new Date().toISOString(),
-                })
-                .eq('id', transfer.id)
-            }
-            // Si el pago fue reembolsado, la transferencia debe estar en 'cancelled'
-            else if (purchase.payment_status === 'refunded' && transfer.status !== 'cancelled') {
-              correctStatus = 'cancelled'
-              
-              await supabase
-                .from('transfers')
-                .update({
-                  status: 'cancelled',
-                  updated_at: new Date().toISOString(),
-                })
-                .eq('id', transfer.id)
-            }
-            // Si el pago está completado y la transferencia está en 'failed' o 'cancelled', 
-            // pero aún no se transfirió, volver a 'pending'
-            else if (
-              purchase.payment_status === 'completed' && 
-              (transfer.status === 'failed' || transfer.status === 'cancelled') &&
-              !transfer.transferred_at
-            ) {
-              correctStatus = 'pending'
-              
-              await supabase
-                .from('transfers')
-                .update({
-                  status: 'pending',
-                  updated_at: new Date().toISOString(),
-                })
-                .eq('id', transfer.id)
-            }
-
-            return {
-              ...transfer,
-              status: correctStatus,
-            }
-          }
-
-          return transfer
-        })
-      )
-
-      setTransfers(transfersWithSyncedStatus)
+      // Las transferencias ahora solo se crean cuando el pago se completa
+      // No necesitamos sincronización porque no se crean para pagos fallidos
+      setTransfers(data || [])
     } catch (err: any) {
       setError(err.message || 'Error obteniendo transferencias')
     } finally {

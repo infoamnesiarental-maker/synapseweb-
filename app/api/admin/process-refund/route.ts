@@ -155,6 +155,25 @@ export async function POST(request: NextRequest) {
       .update({ payment_status: 'refunded' })
       .eq('id', purchase.id)
 
+    // Marcar transferencia como 'cancelled' si existe
+    const { data: transfer } = await supabase
+      .from('transfers')
+      .select('id, status')
+      .eq('purchase_id', purchase.id)
+      .maybeSingle()
+
+    if (transfer && transfer.status !== 'cancelled') {
+      await supabase
+        .from('transfers')
+        .update({
+          status: 'cancelled',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', transfer.id)
+      
+      console.log(`✅ Transferencia ${transfer.id} marcada como 'cancelled' debido a reembolso`)
+    }
+
     return NextResponse.json({
       success: true,
       refundId: refund.id,

@@ -114,33 +114,9 @@ export function useCheckout() {
         throw new Error(`Error obteniendo evento: ${eventError?.message}`)
       }
 
-      // Calcular cuándo transferir (240 horas = 10 días después de la compra)
-      // Según Manual V1: No transferir antes de 240 horas desde purchase.created_at
-      const scheduledAt = new Date(
-        purchaseDate.getTime() + MIN_SETTLEMENT_HOURS * 60 * 60 * 1000
-      ) // 240 horas después de la compra
-
-      // Crear transferencia pendiente (opcional - no bloquea el flujo si falla)
-      try {
-        const { error: transferError } = await supabase
-          .from('transfers')
-          .insert({
-            purchase_id: purchase.id,
-            event_id: params.eventId,
-            producer_id: eventData.producer_id,
-            amount: totalBreakdown.basePrice, // Solo el precio base de la productora
-            status: 'pending',
-            scheduled_at: scheduledAt.toISOString(),
-          })
-
-        if (transferError) {
-          console.warn('⚠️ Error creando transferencia (no crítico):', transferError)
-          // No lanzamos error - la transferencia se puede crear después manualmente o por un proceso batch
-        }
-      } catch (transferErr: any) {
-        console.warn('⚠️ Excepción al crear transferencia (no crítico):', transferErr)
-        // Continuar con el flujo aunque falle la transferencia
-      }
+      // ⚠️ IMPORTANTE: NO crear transferencia aquí
+      // Las transferencias se crearán SOLO cuando el pago se complete en el webhook
+      // Esto evita crear transferencias para pagos que pueden fallar
 
       // Crear preferencia de pago en Mercado Pago
       // Obtener email del comprador
