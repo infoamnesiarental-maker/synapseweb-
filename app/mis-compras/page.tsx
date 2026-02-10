@@ -565,6 +565,7 @@ export default function MisComprasPage() {
               .filter((purchase) => {
                 // Ocultar completamente los pagos fallidos de la lista principal
                 // No tienen tickets y no aportan valor al usuario
+                // Los datos se mantienen en BD para el panel de productora
                 return purchase.payment_status !== 'failed'
               })
               .map((purchase) => (
