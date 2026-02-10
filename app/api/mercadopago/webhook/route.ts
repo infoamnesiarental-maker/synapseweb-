@@ -61,6 +61,27 @@ export async function POST(request: NextRequest) {
 
       // Actualizar estado de la compra en nuestra base de datos
       const supabase = await createClient()
+
+      // ============================================
+      // IDEMPOTENCIA: Verificar si este webhook ya se procesó
+      // ============================================
+      const { data: existingWebhookLog } = await supabase
+        .from('webhook_logs')
+        .select('id, payment_status, processed_at')
+        .eq('payment_id', paymentId.toString())
+        .maybeSingle()
+
+      if (existingWebhookLog) {
+        console.log(`ℹ️ Webhook ya procesado para payment_id ${paymentId} (procesado el ${existingWebhookLog.processed_at})`)
+        // Retornar éxito sin procesar (idempotencia)
+        return NextResponse.json({ 
+          success: true, 
+          purchaseId, 
+          status: existingWebhookLog.payment_status,
+          message: 'Webhook ya procesado anteriormente',
+          alreadyProcessed: true
+        })
+      }
       
       // Mapear estados de Mercado Pago a nuestros estados
       let paymentStatus: 'pending' | 'completed' | 'failed' | 'refunded' = 'pending'
@@ -76,7 +97,7 @@ export async function POST(request: NextRequest) {
       // Obtener la compra actual para calcular gastos operativos y preservar tickets_data
       const { data: currentPurchase, error: fetchError } = await supabase
         .from('purchases')
-        .select('base_amount, created_at, payment_provider_data')
+        .select('base_amount, created_at, payment_provider_data, payment_status')
         .eq('id', purchaseId)
         .single()
 
@@ -84,6 +105,9 @@ export async function POST(request: NextRequest) {
         console.error('Error obteniendo compra:', fetchError)
         return NextResponse.json({ error: 'Error obteniendo compra' }, { status: 500 })
       }
+
+      // Guardar estado anterior para auditoría
+      const oldPaymentStatus = currentPurchase.payment_status
 
       // Preservar tickets_data antes de actualizar payment_provider_data
       const ticketsData = (currentPurchase.payment_provider_data as any)?.tickets_data
@@ -138,6 +162,51 @@ export async function POST(request: NextRequest) {
       if (updateError) {
         console.error('Error actualizando compra:', updateError)
         return NextResponse.json({ error: 'Error actualizando compra' }, { status: 500 })
+      }
+
+      // ============================================
+      // AUDITORÍA: Registrar cambio de estado
+      // ============================================
+      if (oldPaymentStatus !== paymentStatus) {
+        const { error: auditError } = await supabase
+          .from('audit_logs')
+          .insert({
+            entity_type: 'purchase',
+            entity_id: purchaseId,
+            action: 'status_changed',
+            old_value: { payment_status: oldPaymentStatus },
+            new_value: { payment_status: paymentStatus },
+            changed_field: 'payment_status',
+            triggered_by: 'mercadopago_webhook',
+            metadata: {
+              payment_id: paymentId.toString(),
+              mp_status: payment.status,
+            },
+          })
+
+        if (auditError) {
+          // No fallar si no se puede registrar auditoría (no crítico)
+          console.warn('⚠️ Error registrando auditoría (no crítico):', auditError)
+        }
+      }
+
+      // ============================================
+      // IDEMPOTENCIA: Registrar que este webhook se procesó
+      // ============================================
+      const { error: webhookLogError } = await supabase
+        .from('webhook_logs')
+        .insert({
+          payment_id: paymentId.toString(),
+          purchase_id: purchaseId,
+          webhook_type: type,
+          payment_status: paymentStatus,
+          webhook_data: payment,
+        })
+
+      if (webhookLogError) {
+        // Si falla (ej: duplicado por race condition), no es crítico
+        // El UNIQUE constraint en payment_id ya previene duplicados
+        console.warn('⚠️ Error registrando webhook log (no crítico):', webhookLogError)
       }
 
       console.log(`✅ Compra ${purchaseId} actualizada a estado: ${paymentStatus}`)
@@ -317,28 +386,33 @@ export async function POST(request: NextRequest) {
           console.log(`ℹ️ Transferencia ya existe para compra ${purchaseId}`)
         }
 
-        // Verificar si ya se envió el email (esto se puede mejorar con un flag)
-        const { data: purchase } = await supabase
-          .from('purchases')
-          .select('user_id, guest_email, guest_name')
-          .eq('id', purchaseId)
-          .single()
+        // Verificar si ya se envió el email (usando webhook_logs para idempotencia)
+        // Solo enviar email si este webhook no se procesó antes
+        if (!existingWebhookLog) {
+          const { data: purchase } = await supabase
+            .from('purchases')
+            .select('user_id, guest_email, guest_name')
+            .eq('id', purchaseId)
+            .single()
 
-        if (purchase) {
-          // Enviar email de forma asíncrona (no bloquea la respuesta)
-          fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/send-tickets-email`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              purchaseId,
-              email: purchase.guest_email || undefined,
-              userName: purchase.guest_name || undefined,
-            }),
-          }).catch((err) => {
-            console.warn('Error enviando email (no crítico):', err)
-          })
+          if (purchase) {
+            // Enviar email de forma asíncrona (no bloquea la respuesta)
+            fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/send-tickets-email`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                purchaseId,
+                email: purchase.guest_email || undefined,
+                userName: purchase.guest_name || undefined,
+              }),
+            }).catch((err) => {
+              console.warn('Error enviando email (no crítico):', err)
+            })
+          }
+        } else {
+          console.log(`ℹ️ Email ya enviado para compra ${purchaseId} (webhook ya procesado)`)
         }
       } else if (paymentStatus === 'failed') {
         // Si el pago falló, NO deberían existir tickets (se crean solo cuando paymentStatus === 'completed')
