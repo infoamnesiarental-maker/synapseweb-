@@ -15,6 +15,7 @@ export interface PurchaseWithDetails {
   commission_amount: number
   payment_method: string
   payment_status: 'pending' | 'completed' | 'failed' | 'refunded'
+  payment_provider_id: string | null
   created_at: string
   event: {
     id: string
