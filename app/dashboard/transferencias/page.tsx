@@ -140,32 +140,59 @@ export default function TransferenciasPage() {
             </div>
 
             <div className="space-y-3">
-              {transfers.map((transfer) => {
-                const createdAt = new Date(transfer.created_at)
-                const purchaseDate =
-                  transfer.purchase && 'created_at' in transfer.purchase
-                    ? new Date(transfer.purchase.created_at)
-                    : null
+              {transfers
+                .filter((transfer) => {
+                  // Filtrar basándose en mp_status (estado de Mercado Pago)
+                  // Solo mostrar si Mercado Pago dice: approved, pending, refunded, charged_back
+                  // NO mostrar si Mercado Pago dice: rejected, cancelled
+                  const mpStatus = transfer.mp_status
+                  
+                  if (!mpStatus) {
+                    // Si no hay mp_status, usar nuestro estado interno como fallback
+                    return transfer.status !== 'failed'
+                  }
+                  
+                  // Mostrar según estado de Mercado Pago
+                  return mpStatus === 'approved' || 
+                         mpStatus === 'pending' || 
+                         mpStatus === 'refunded' || 
+                         mpStatus === 'charged_back'
+                })
+                .map((transfer) => {
+                  const createdAt = new Date(transfer.created_at)
+                  const purchaseDate =
+                    transfer.purchase && 'created_at' in transfer.purchase
+                      ? new Date(transfer.purchase.created_at)
+                      : null
 
-                const statusLabel =
-                  transfer.status === 'pending'
-                    ? 'Pendiente'
-                    : transfer.status === 'completed'
-                    ? 'Completada'
-                    : transfer.status === 'failed'
-                    ? 'Fallida'
-                    : 'Cancelada'
+                  // Usar mp_status para mostrar, pero mantener transfer.status para lógica
+                  const displayStatus = transfer.mp_status || transfer.status
+                  
+                  const statusLabel =
+                    displayStatus === 'approved' || displayStatus === 'completed'
+                      ? 'Completada'
+                      : displayStatus === 'pending'
+                      ? 'Pendiente'
+                      : displayStatus === 'refunded' || displayStatus === 'charged_back'
+                      ? 'Reembolsada'
+                      : displayStatus === 'rejected' || displayStatus === 'failed'
+                      ? 'Fallida'
+                      : displayStatus === 'cancelled'
+                      ? 'Cancelada'
+                      : 'Pendiente'
 
-                const statusColor =
-                  transfer.status === 'pending'
-                    ? 'text-yellow-400'
-                    : transfer.status === 'completed'
-                    ? 'text-green-400'
-                    : transfer.status === 'failed'
-                    ? 'text-red-400'
-                    : transfer.status === 'cancelled'
-                    ? 'text-gray-400'
-                    : 'text-red-400'
+                  const statusColor =
+                    displayStatus === 'approved' || displayStatus === 'completed'
+                      ? 'text-green-400'
+                      : displayStatus === 'pending'
+                      ? 'text-yellow-400'
+                      : displayStatus === 'refunded' || displayStatus === 'charged_back'
+                      ? 'text-purple-400'
+                      : displayStatus === 'rejected' || displayStatus === 'failed'
+                      ? 'text-red-400'
+                      : displayStatus === 'cancelled'
+                      ? 'text-gray-400'
+                      : 'text-yellow-400'
 
                 return (
                   <div

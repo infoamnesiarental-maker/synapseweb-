@@ -4,9 +4,17 @@
 
 Esta guía cubre todos los tests fundamentales y necesarios para usar el software en producción de forma segura y confiable.
 
+**📌 IMPORTANTE:** Para tests principales paso a paso, ver `TESTS_PRINCIPALES_PRODUCCION.md`
+
 ---
 
 ## 📋 Índice de Tests
+
+### Tests Principales (INDISPENSABLES) ⭐
+Ver guía detallada en `TESTS_PRINCIPALES_PRODUCCION.md`:
+- ✅ **TEST 1: Pago Exitoso** - Verificar que todo se crea correctamente
+- ✅ **TEST 2: Pago Fallido/Rechazado** - Verificar que NO se crea nada
+- ✅ **TEST 3: Verificación de Transferencias** - Verificar creación correcta
 
 ### Tests Básicos (Ya completados)
 - ✅ TEST 1: App carga correctamente
@@ -618,11 +626,35 @@ Si Mercado Pago procesa un reembolso directamente (no desde nuestra app), el web
 
 Antes de usar el software en producción, verificá que:
 
+### Tests Principales (INDISPENSABLES) ⭐
+**Ver guía detallada en `TESTS_PRINCIPALES_PRODUCCION.md`:**
+- [ ] **TEST 1: Pago Exitoso** - Todo se crea correctamente
+  - [ ] Compra: `payment_status = 'completed'`
+  - [ ] Tickets creados (cantidad correcta)
+  - [ ] Transferencia creada (monto correcto)
+  - [ ] Email enviado con tickets
+  - [ ] Aparece en "Mis Compras" con tickets
+  - [ ] Aparece en Dashboard de productora
+  
+- [ ] **TEST 2: Pago Fallido** - Nada se crea
+  - [ ] Compra: `payment_status = 'failed'`
+  - [ ] NO se crearon tickets (0 tickets)
+  - [ ] NO se creó transferencia (0 transferencias)
+  - [ ] NO se envió email
+  - [ ] NO aparece en "Mis Compras" (o aparece como fallida)
+  - [ ] NO aparece en Dashboard de productora
+  
+- [ ] **TEST 3: Verificación de Transferencias**
+  - [ ] Transferencia se creó automáticamente
+  - [ ] Monto correcto (precio base)
+  - [ ] Estado: "pending"
+  - [ ] `scheduled_at` correcto (240 horas después)
+  - [ ] NO hay transferencias de pagos fallidos
+
 ### Tests Básicos
 - [ ] TEST 1-7 completados (ver `10_GUIA_TESTEO_PRODUCCION.md`)
 
-### Tests Críticos
-- [ ] TEST 8: Pago rechazado funciona (NO crea transferencia)
+### Tests Críticos Adicionales (Opcionales)
 - [ ] TEST 9: Reembolso derecho de arrepentimiento funciona
 - [ ] TEST 10: Reembolso cancelación funciona
 - [ ] TEST 11: Reembolso cambio fecha/lugar funciona

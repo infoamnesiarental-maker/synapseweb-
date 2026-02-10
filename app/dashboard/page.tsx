@@ -195,58 +195,81 @@ export default function DashboardPage() {
               </Link>
             </div>
             <div className="space-y-3">
-              {transfers.slice(0, 5).map((transfer) => (
-                <div
-                  key={transfer.id}
-                  className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10"
-                >
-                  <div>
-                    <p className="text-white font-semibold">
-                      {transfer.event?.name || 'Evento'}
-                    </p>
-                    <p className="text-lightGray text-sm">
-                      {transfer.status === 'pending' 
-                        ? 'Pendiente' 
-                        : transfer.status === 'completed'
-                        ? 'Completada'
-                        : transfer.status === 'failed'
-                        ? 'Fallida'
-                        : transfer.status === 'cancelled'
-                        ? 'Cancelada'
-                        : transfer.status} •{' '}
-                      {new Date(transfer.created_at).toLocaleDateString('es-AR')}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-white font-bold text-lg">
-                      ${formatPrice(Number(transfer.amount))}
-                    </p>
-                    <span
-                      className={`text-xs font-semibold uppercase ${
-                        transfer.status === 'pending'
-                          ? 'text-yellow-400'
-                          : transfer.status === 'completed'
-                          ? 'text-green-400'
-                          : transfer.status === 'failed'
-                          ? 'text-red-400'
-                          : transfer.status === 'cancelled'
-                          ? 'text-gray-400'
-                          : 'text-red-400'
-                      }`}
+              {transfers
+                .filter((transfer) => {
+                  // Filtrar basándose en mp_status (estado de Mercado Pago)
+                  // Solo mostrar si Mercado Pago dice: approved, pending, refunded, charged_back
+                  // NO mostrar si Mercado Pago dice: rejected, cancelled
+                  const mpStatus = transfer.mp_status
+                  
+                  if (!mpStatus) {
+                    // Si no hay mp_status, usar nuestro estado interno como fallback
+                    return transfer.status !== 'failed'
+                  }
+                  
+                  // Mostrar según estado de Mercado Pago
+                  return mpStatus === 'approved' || 
+                         mpStatus === 'pending' || 
+                         mpStatus === 'refunded' || 
+                         mpStatus === 'charged_back'
+                })
+                .slice(0, 5)
+                .map((transfer) => {
+                  // Usar mp_status para mostrar, pero mantener transfer.status para lógica
+                  const displayStatus = transfer.mp_status || transfer.status
+                  const statusLabel = 
+                    displayStatus === 'approved' || displayStatus === 'completed'
+                      ? 'Completada'
+                      : displayStatus === 'pending'
+                      ? 'Pendiente'
+                      : displayStatus === 'refunded' || displayStatus === 'charged_back'
+                      ? 'Reembolsada'
+                      : displayStatus === 'rejected' || displayStatus === 'failed'
+                      ? 'Fallida'
+                      : displayStatus === 'cancelled'
+                      ? 'Cancelada'
+                      : 'Pendiente'
+                  
+                  const statusColor =
+                    displayStatus === 'approved' || displayStatus === 'completed'
+                      ? 'text-green-400'
+                      : displayStatus === 'pending'
+                      ? 'text-yellow-400'
+                      : displayStatus === 'refunded' || displayStatus === 'charged_back'
+                      ? 'text-purple-400'
+                      : displayStatus === 'rejected' || displayStatus === 'failed'
+                      ? 'text-red-400'
+                      : displayStatus === 'cancelled'
+                      ? 'text-gray-400'
+                      : 'text-yellow-400'
+
+                  return (
+                    <div
+                      key={transfer.id}
+                      className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10"
                     >
-                      {transfer.status === 'pending'
-                        ? 'Pendiente'
-                        : transfer.status === 'completed'
-                        ? 'Completada'
-                        : transfer.status === 'failed'
-                        ? 'Fallida'
-                        : transfer.status === 'cancelled'
-                        ? 'Cancelada'
-                        : transfer.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                      <div>
+                        <p className="text-white font-semibold">
+                          {transfer.event?.name || 'Evento'}
+                        </p>
+                        <p className="text-lightGray text-sm">
+                          {statusLabel} •{' '}
+                          {new Date(transfer.created_at).toLocaleDateString('es-AR')}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-white font-bold text-lg">
+                          ${formatPrice(Number(transfer.amount))}
+                        </p>
+                        <span
+                          className={`text-xs font-semibold uppercase ${statusColor}`}
+                        >
+                          {statusLabel}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
             </div>
           </div>
         )}

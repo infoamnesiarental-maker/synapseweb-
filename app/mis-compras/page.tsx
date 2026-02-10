@@ -46,6 +46,7 @@ export default function MisComprasPage() {
   const [expandedPurchase, setExpandedPurchase] = useState<string | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [refundsByPurchase, setRefundsByPurchase] = useState<Record<string, any>>({})
+  const [verifiedPurchases, setVerifiedPurchases] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -53,7 +54,7 @@ export default function MisComprasPage() {
     }
   }, [authLoading, isAuthenticated, router])
 
-  // Verificar estado de pagos pendientes con Mercado Pago
+  // Verificar estado de pagos pendientes con Mercado Pago INMEDIATAMENTE
   useEffect(() => {
     if (!user?.id || purchases.length === 0) return
 
@@ -61,10 +62,12 @@ export default function MisComprasPage() {
       // Buscar TODAS las compras pendientes (incluso sin payment_provider_id)
       // Si el usuario fue a Mercado Pago, puede haber un pago aunque no tengamos el ID
       const pendingPurchases = purchases.filter(
-        p => p.payment_status === 'pending'
+        p => p.payment_status === 'pending' && !verifiedPurchases.has(p.id)
       )
 
       if (pendingPurchases.length === 0) return
+
+      let needsReload = false
 
       // Verificar cada compra pendiente
       for (const purchase of pendingPurchases) {
@@ -81,28 +84,38 @@ export default function MisComprasPage() {
 
           if (response.ok) {
             const data = await response.json()
-            // Si el estado cambió, recargar las compras
+            // Marcar como verificada
+            setVerifiedPurchases(prev => new Set(prev).add(purchase.id))
+            
+            // Si el estado cambió (especialmente a 'failed'), recargar
             if (data.updated && data.paymentStatus !== 'pending') {
-              // Forzar recarga de compras
-              window.location.reload()
+              needsReload = true
             }
           }
         } catch (error) {
           console.warn(`Error verificando estado de pago para compra ${purchase.id}:`, error)
+          // Marcar como verificada para no intentar de nuevo inmediatamente
+          setVerifiedPurchases(prev => new Set(prev).add(purchase.id))
         }
+      }
+
+      // Si alguna compra cambió a 'failed', recargar para ocultarla
+      if (needsReload) {
+        window.location.reload()
       }
     }
 
-    // Verificar después de 3 segundos (dar tiempo al webhook)
-    // Y también verificar periódicamente (cada 30 segundos) por si el webhook tarda
-    const timeout1 = setTimeout(checkPendingPayments, 3000)
-    const interval = setInterval(checkPendingPayments, 30000) // Cada 30 segundos
+    // Verificar INMEDIATAMENTE al cargar (no esperar 3 segundos)
+    // Esto asegura que las compras rechazadas se actualicen antes de renderizar
+    checkPendingPayments()
+
+    // También verificar periódicamente (cada 30 segundos) por si el webhook tarda
+    const interval = setInterval(checkPendingPayments, 30000)
     
     return () => {
-      clearTimeout(timeout1)
       clearInterval(interval)
     }
-  }, [user?.id, purchases])
+  }, [user?.id, purchases, verifiedPurchases])
 
   // Obtener información de devoluciones aprobadas
   useEffect(() => {

@@ -25,6 +25,7 @@ export interface Transfer {
     commission_amount: number
     created_at: string
     payment_status?: 'pending' | 'completed' | 'failed' | 'refunded'
+    payment_provider_data?: any // Para acceder a mp_status
   }
   event?: {
     id: string
@@ -32,6 +33,8 @@ export interface Transfer {
     start_date: string
     end_date: string
   }
+  // Estado de Mercado Pago (extraído de payment_provider_data)
+  mp_status?: string | null
 }
 
 export function useTransfers(producerId?: string) {
@@ -57,7 +60,7 @@ export function useTransfers(producerId?: string) {
         .from('transfers')
         .select(`
           *,
-          purchase:purchases(id, total_amount, base_amount, commission_amount, created_at, payment_status),
+          purchase:purchases(id, total_amount, base_amount, commission_amount, created_at, payment_status, payment_provider_data),
           event:events(id, name, start_date, end_date)
         `)
         .eq('producer_id', producerId)
@@ -69,7 +72,34 @@ export function useTransfers(producerId?: string) {
 
       // Las transferencias ahora solo se crean cuando el pago se completa
       // No necesitamos sincronización porque no se crean para pagos fallidos
-      setTransfers(data || [])
+      // Extraer mp_status de payment_provider_data para mostrar en dashboard
+      const transfersWithMpStatus = (data || []).map((transfer: any) => {
+        const purchase = transfer.purchase
+        let mpStatus: string | null = null
+        
+        if (purchase?.payment_provider_data) {
+          // payment_provider_data puede ser un objeto o un string JSON
+          let providerData = purchase.payment_provider_data
+          if (typeof providerData === 'string') {
+            try {
+              providerData = JSON.parse(providerData)
+            } catch (e) {
+              // Si no se puede parsear, usar null
+            }
+          }
+          
+          if (providerData && typeof providerData === 'object') {
+            mpStatus = providerData.status || null
+          }
+        }
+
+        return {
+          ...transfer,
+          mp_status: mpStatus,
+        }
+      })
+
+      setTransfers(transfersWithMpStatus)
     } catch (err: any) {
       setError(err.message || 'Error obteniendo transferencias')
     } finally {
