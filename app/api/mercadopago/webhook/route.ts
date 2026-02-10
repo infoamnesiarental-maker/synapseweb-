@@ -232,77 +232,76 @@ export async function POST(request: NextRequest) {
             if (!ticketsData || !Array.isArray(ticketsData) || ticketsData.length === 0) {
               console.error('No se encontraron datos de tickets en la compra')
             } else {
-                const ticketsToInsert = []
+              const ticketsToInsert = []
 
-                // Crear tickets según los datos guardados
-                for (const ticketData of ticketsData) {
-                  // Obtener información del ticket type
-                  const { data: ticketType, error: ticketTypeError } = await supabase
-                    .from('ticket_types')
-                    .select('*')
-                    .eq('id', ticketData.ticketTypeId)
-                    .single()
+              // Crear tickets según los datos guardados
+              for (const ticketData of ticketsData) {
+                // Obtener información del ticket type
+                const { data: ticketType, error: ticketTypeError } = await supabase
+                  .from('ticket_types')
+                  .select('*')
+                  .eq('id', ticketData.ticketTypeId)
+                  .single()
 
-                  if (ticketTypeError || !ticketType) {
-                    console.error(`Error obteniendo tipo de ticket ${ticketData.ticketTypeId}:`, ticketTypeError)
-                    continue
-                  }
-
-                  // Verificar disponibilidad
-                  const available = ticketType.quantity_available - ticketType.quantity_sold
-                  if (available < ticketData.quantity) {
-                    console.error(`No hay suficientes tickets disponibles para ${ticketType.name}`)
-                    continue
-                  }
-
-                  // Crear un ticket por cada cantidad
-                  for (let i = 0; i < ticketData.quantity; i++) {
-                    const ticketId = crypto.randomUUID()
-                    
-                    // Generar ticket_number
-                    const eventPrefix = purchaseData.event_id.substring(0, 8).toUpperCase()
-                    const ticketNumber = `EVT-${eventPrefix}-${String(Date.now()).slice(-6)}-${String(i + 1).padStart(3, '0')}`
-                    
-                    // Generar QR code
-                    const qrCode = `SYN-${ticketId.substring(0, 8).toUpperCase()}-${crypto.randomUUID().substring(0, 8).toUpperCase()}`
-                    
-                    // Generar QR hash
-                    const qrHashBuffer = await crypto.subtle.digest(
-                      'SHA-256',
-                      new TextEncoder().encode(`${ticketId}${qrCode}${Date.now()}`)
-                    )
-                    const qrHashArray = Array.from(new Uint8Array(qrHashBuffer))
-                    const qrHash = qrHashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
-
-                    ticketsToInsert.push({
-                      purchase_id: purchaseId,
-                      ticket_type_id: ticketData.ticketTypeId,
-                      event_id: purchaseData.event_id,
-                      ticket_number: ticketNumber,
-                      qr_code: qrCode,
-                      qr_hash: qrHash,
-                      status: 'valid',
-                    })
-                  }
-
-                  // Actualizar cantidad vendida del ticket type
-                  await supabase
-                    .from('ticket_types')
-                    .update({ quantity_sold: ticketType.quantity_sold + ticketData.quantity })
-                    .eq('id', ticketType.id)
+                if (ticketTypeError || !ticketType) {
+                  console.error(`Error obteniendo tipo de ticket ${ticketData.ticketTypeId}:`, ticketTypeError)
+                  continue
                 }
 
-                // Insertar todos los tickets
-                if (ticketsToInsert.length > 0) {
-                  const { error: ticketsInsertError } = await supabase
-                    .from('tickets')
-                    .insert(ticketsToInsert)
+                // Verificar disponibilidad
+                const available = ticketType.quantity_available - ticketType.quantity_sold
+                if (available < ticketData.quantity) {
+                  console.error(`No hay suficientes tickets disponibles para ${ticketType.name}`)
+                  continue
+                }
 
-                  if (ticketsInsertError) {
-                    console.error('Error creando tickets:', ticketsInsertError)
-                  } else {
-                    console.log(`✅ ${ticketsToInsert.length} tickets creados para compra ${purchaseId}`)
-                  }
+                // Crear un ticket por cada cantidad
+                for (let i = 0; i < ticketData.quantity; i++) {
+                  const ticketId = crypto.randomUUID()
+                  
+                  // Generar ticket_number
+                  const eventPrefix = purchaseData.event_id.substring(0, 8).toUpperCase()
+                  const ticketNumber = `EVT-${eventPrefix}-${String(Date.now()).slice(-6)}-${String(i + 1).padStart(3, '0')}`
+                  
+                  // Generar QR code
+                  const qrCode = `SYN-${ticketId.substring(0, 8).toUpperCase()}-${crypto.randomUUID().substring(0, 8).toUpperCase()}`
+                  
+                  // Generar QR hash
+                  const qrHashBuffer = await crypto.subtle.digest(
+                    'SHA-256',
+                    new TextEncoder().encode(`${ticketId}${qrCode}${Date.now()}`)
+                  )
+                  const qrHashArray = Array.from(new Uint8Array(qrHashBuffer))
+                  const qrHash = qrHashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+
+                  ticketsToInsert.push({
+                    purchase_id: purchaseId,
+                    ticket_type_id: ticketData.ticketTypeId,
+                    event_id: purchaseData.event_id,
+                    ticket_number: ticketNumber,
+                    qr_code: qrCode,
+                    qr_hash: qrHash,
+                    status: 'valid',
+                  })
+                }
+
+                // Actualizar cantidad vendida del ticket type
+                await supabase
+                  .from('ticket_types')
+                  .update({ quantity_sold: ticketType.quantity_sold + ticketData.quantity })
+                  .eq('id', ticketType.id)
+              }
+
+              // Insertar todos los tickets
+              if (ticketsToInsert.length > 0) {
+                const { error: ticketsInsertError } = await supabase
+                  .from('tickets')
+                  .insert(ticketsToInsert)
+
+                if (ticketsInsertError) {
+                  console.error('Error creando tickets:', ticketsInsertError)
+                } else {
+                  console.log(`✅ ${ticketsToInsert.length} tickets creados para compra ${purchaseId}`)
                 }
               }
             }
