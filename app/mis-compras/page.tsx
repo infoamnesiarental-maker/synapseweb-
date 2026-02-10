@@ -58,9 +58,10 @@ export default function MisComprasPage() {
     if (!user?.id || purchases.length === 0) return
 
     async function checkPendingPayments() {
-      // Buscar compras pendientes que tengan payment_provider_id (ya fueron a Mercado Pago)
+      // Buscar TODAS las compras pendientes (incluso sin payment_provider_id)
+      // Si el usuario fue a Mercado Pago, puede haber un pago aunque no tengamos el ID
       const pendingPurchases = purchases.filter(
-        p => p.payment_status === 'pending' && p.payment_provider_id
+        p => p.payment_status === 'pending'
       )
 
       if (pendingPurchases.length === 0) return
@@ -93,8 +94,14 @@ export default function MisComprasPage() {
     }
 
     // Verificar después de 3 segundos (dar tiempo al webhook)
-    const timeout = setTimeout(checkPendingPayments, 3000)
-    return () => clearTimeout(timeout)
+    // Y también verificar periódicamente (cada 30 segundos) por si el webhook tarda
+    const timeout1 = setTimeout(checkPendingPayments, 3000)
+    const interval = setInterval(checkPendingPayments, 30000) // Cada 30 segundos
+    
+    return () => {
+      clearTimeout(timeout1)
+      clearInterval(interval)
+    }
   }, [user?.id, purchases])
 
   // Obtener información de devoluciones aprobadas
