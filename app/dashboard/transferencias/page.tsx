@@ -161,6 +161,10 @@ export default function TransferenciasPage() {
                     ? 'text-yellow-400'
                     : transfer.status === 'completed'
                     ? 'text-green-400'
+                    : transfer.status === 'failed'
+                    ? 'text-red-400'
+                    : transfer.status === 'cancelled'
+                    ? 'text-gray-400'
                     : 'text-red-400'
 
                 return (

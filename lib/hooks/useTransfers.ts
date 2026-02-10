@@ -24,6 +24,7 @@ export interface Transfer {
     base_amount: number
     commission_amount: number
     created_at: string
+    payment_status?: 'pending' | 'completed' | 'failed' | 'refunded'
   }
   event?: {
     id: string
