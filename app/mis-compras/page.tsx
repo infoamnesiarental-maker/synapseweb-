@@ -561,13 +561,33 @@ export default function MisComprasPage() {
         {/* Purchases List - Diseño Limpio */}
         {purchases.length > 0 && (
           <div className="space-y-6">
-            {purchases.map((purchase) => (
+            {purchases
+              .filter((purchase) => {
+                // Filtrar pagos fallidos antiguos (más de 30 días)
+                if (purchase.payment_status === 'failed') {
+                  const purchaseDate = new Date(purchase.created_at)
+                  const daysSincePurchase = (Date.now() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24)
+                  return daysSincePurchase <= 30 // Mostrar solo fallidos de los últimos 30 días
+                }
+                return true // Mostrar todos los demás estados
+              })
+              .map((purchase) => (
               <div
                 key={purchase.id}
-                className="bg-mediumGray rounded-2xl border border-[#2F2F2F] overflow-hidden hover:border-purple-vibrant/30 transition-all duration-200"
+                className={`rounded-2xl border overflow-hidden transition-all duration-200 ${
+                  purchase.payment_status === 'failed'
+                    ? 'bg-red/5 border-red/40 hover:border-red/60'
+                    : purchase.payment_status === 'completed'
+                    ? 'bg-mediumGray border-[#2F2F2F] hover:border-green/30'
+                    : 'bg-mediumGray border-[#2F2F2F] hover:border-purple-vibrant/30'
+                }`}
               >
                 {/* Purchase Header - Simple y Limpio */}
-                <div className="p-6 lg:p-8 border-b border-[#2F2F2F]">
+                <div className={`p-6 lg:p-8 border-b ${
+                  purchase.payment_status === 'failed'
+                    ? 'border-red/30'
+                    : 'border-[#2F2F2F]'
+                }`}>
                   <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
                     {/* Left Section */}
                     <div className="flex-1">
@@ -595,7 +615,11 @@ export default function MisComprasPage() {
                     <div className="flex items-center gap-6">
                       <div className="text-right">
                         <p className="text-lightGray text-sm mb-1">Total</p>
-                        <p className="text-3xl lg:text-4xl font-black text-purple-vibrant">
+                        <p className={`text-3xl lg:text-4xl font-black ${
+                          purchase.payment_status === 'failed'
+                            ? 'text-red-400'
+                            : 'text-purple-vibrant'
+                        }`}>
                           ${purchase.total_amount.toLocaleString('es-AR')}
                         </p>
                       </div>
@@ -771,15 +795,21 @@ export default function MisComprasPage() {
                             </div>
                           )
                         }) : (
-                          <div className="col-span-2 text-center py-8 text-white/60">
+                          <div className="col-span-2 text-center py-8">
                             {purchase.payment_status === 'pending' && (
-                              <p>El pago está pendiente. Los tickets se generarán cuando se confirme el pago.</p>
+                              <p className="text-white/60">El pago está pendiente. Los tickets se generarán cuando se confirme el pago.</p>
                             )}
                             {purchase.payment_status === 'failed' && (
-                              <p>El pago fue rechazado. No se generaron tickets.</p>
+                              <div className="bg-red/10 border border-red/30 rounded-xl p-6">
+                                <div className="flex items-center justify-center gap-3 mb-2">
+                                  <XCircle className="w-6 h-6 text-red-400" />
+                                  <p className="text-red-400 font-semibold text-lg">Pago Rechazado</p>
+                                </div>
+                                <p className="text-red-300/80 text-sm">El pago fue rechazado. No se generaron tickets.</p>
+                              </div>
                             )}
                             {purchase.payment_status === 'refunded' && (
-                              <p>Esta compra fue reembolsada.</p>
+                              <p className="text-white/60">Esta compra fue reembolsada.</p>
                             )}
                           </div>
                         )}
