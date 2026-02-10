@@ -205,7 +205,15 @@ export default function DashboardPage() {
                       {transfer.event?.name || 'Evento'}
                     </p>
                     <p className="text-lightGray text-sm">
-                      {transfer.status === 'pending' ? 'Pendiente' : 'Completada'} •{' '}
+                      {transfer.status === 'pending' 
+                        ? 'Pendiente' 
+                        : transfer.status === 'completed'
+                        ? 'Completada'
+                        : transfer.status === 'failed'
+                        ? 'Fallida'
+                        : transfer.status === 'cancelled'
+                        ? 'Cancelada'
+                        : transfer.status} •{' '}
                       {new Date(transfer.created_at).toLocaleDateString('es-AR')}
                     </p>
                   </div>
@@ -219,6 +227,10 @@ export default function DashboardPage() {
                           ? 'text-yellow-400'
                           : transfer.status === 'completed'
                           ? 'text-green-400'
+                          : transfer.status === 'failed'
+                          ? 'text-red-400'
+                          : transfer.status === 'cancelled'
+                          ? 'text-gray-400'
                           : 'text-red-400'
                       }`}
                     >
@@ -226,6 +238,10 @@ export default function DashboardPage() {
                         ? 'Pendiente'
                         : transfer.status === 'completed'
                         ? 'Completada'
+                        : transfer.status === 'failed'
+                        ? 'Fallida'
+                        : transfer.status === 'cancelled'
+                        ? 'Cancelada'
                         : transfer.status}
                     </span>
                   </div>
