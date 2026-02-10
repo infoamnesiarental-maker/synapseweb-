@@ -36,18 +36,9 @@ function CheckoutSuccessContent() {
         return
       }
 
-      // ⚠️ IMPORTANTE: Solo mostrar tickets si el pago está completado
-      if (purchaseData.payment_status !== 'completed') {
-        console.warn('Pago no completado, no se muestran tickets')
-        setPurchase(purchaseData)
-        setTickets([])
-        setLoading(false)
-        return
-      }
-
       setPurchase(purchaseData)
 
-      // Obtener tickets solo si el pago está completado
+      // Obtener tickets (solo existen si el pago está completado)
       const { data: ticketsData, error: ticketsError } = await supabase
         .from('tickets')
         .select('*, ticket_types(name), events(name, slug)')

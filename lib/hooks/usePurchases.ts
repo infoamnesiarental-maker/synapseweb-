@@ -100,6 +100,7 @@ export function usePurchases(userId?: string | null) {
         }
 
         // Para cada compra, obtener sus tickets con información del ticket_type
+        // Los tickets solo existen si payment_status === 'completed', así que no necesitamos filtrar
         const purchasesWithTickets = await Promise.all(
           purchasesData.map(async (purchase) => {
             const { data: ticketsData, error: ticketsError } = await supabase

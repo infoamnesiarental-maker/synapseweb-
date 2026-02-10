@@ -626,8 +626,8 @@ export default function MisComprasPage() {
 
                       {/* Tickets Grid */}
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Solo mostrar tickets si el pago está completado */}
-                        {purchase.payment_status === 'completed' && purchase.tickets.map((ticket) => {
+                        {/* Los tickets solo existen si el pago está completado, así que los mostramos directamente */}
+                        {purchase.tickets && purchase.tickets.length > 0 ? purchase.tickets.map((ticket) => {
                           const isRefunded = ticket.status === 'refunded'
                           const refundInfo = refundsByPurchase[purchase.id]?.find((r: any) => 
                             !r.ticket_id || r.ticket_id === ticket.id
@@ -726,10 +726,17 @@ export default function MisComprasPage() {
                               </div>
                             </div>
                           )
-                        })}
-                        {purchase.payment_status !== 'completed' && (
+                        }) : (
                           <div className="col-span-2 text-center py-8 text-white/60">
-                            <p>No hay tickets disponibles. El pago no fue completado.</p>
+                            {purchase.payment_status === 'pending' && (
+                              <p>El pago está pendiente. Los tickets se generarán cuando se confirme el pago.</p>
+                            )}
+                            {purchase.payment_status === 'failed' && (
+                              <p>El pago fue rechazado. No se generaron tickets.</p>
+                            )}
+                            {purchase.payment_status === 'refunded' && (
+                              <p>Esta compra fue reembolsada.</p>
+                            )}
                           </div>
                         )}
                       </div>

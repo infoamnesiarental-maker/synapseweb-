@@ -333,42 +333,21 @@ export async function POST(request: NextRequest) {
           })
         }
       } else if (paymentStatus === 'failed') {
-        // Si el pago falló, eliminar o marcar como inválidos los tickets existentes
+        // Si el pago falló, NO deberían existir tickets (se crean solo cuando paymentStatus === 'completed')
+        // Esta verificación es solo para limpiar tickets legacy de compras anteriores al fix
         const { data: existingTickets } = await supabase
           .from('tickets')
           .select('id, ticket_type_id')
           .eq('purchase_id', purchaseId)
+          .limit(1)
 
         if (existingTickets && existingTickets.length > 0) {
-          // Eliminar los tickets (no deberían existir, pero por si acaso)
-          const { error: deleteError } = await supabase
+          console.warn(`⚠️ Se encontraron tickets para compra fallida ${purchaseId} (legacy - limpiando)`)
+          // Eliminar tickets legacy (no deberían existir con el nuevo flujo)
+          await supabase
             .from('tickets')
             .delete()
             .eq('purchase_id', purchaseId)
-
-          if (deleteError) {
-            console.error('Error eliminando tickets de pago fallido:', deleteError)
-          } else {
-            console.log(`✅ Tickets eliminados para compra fallida ${purchaseId}`)
-            
-            // Revertir cantidad vendida de los ticket types
-            for (const ticket of existingTickets) {
-              if (ticket.ticket_type_id) {
-                const { data: ticketType } = await supabase
-                  .from('ticket_types')
-                  .select('quantity_sold')
-                  .eq('id', ticket.ticket_type_id)
-                  .single()
-
-                if (ticketType && ticketType.quantity_sold > 0) {
-                  await supabase
-                    .from('ticket_types')
-                    .update({ quantity_sold: ticketType.quantity_sold - 1 })
-                    .eq('id', ticket.ticket_type_id)
-                }
-              }
-            }
-          }
         }
       }
 
