@@ -243,9 +243,20 @@ export async function POST(request: NextRequest) {
                   // Solo enviar email si no se envió antes (webhook no llegó o no procesó el email)
                   if (!existingWebhookLog && purchaseData.guest_email) {
                     // Construir URL del endpoint de email
-                    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL 
-                      ? `https://${process.env.VERCEL_URL}` 
-                      : 'http://localhost:3000'
+                    // Priorizar NEXT_PUBLIC_APP_URL (debe estar configurado en producción)
+                    // Solo usar VERCEL_URL si NEXT_PUBLIC_APP_URL no está configurado Y no es una URL de preview
+                    let appUrl = process.env.NEXT_PUBLIC_APP_URL
+                    
+                    if (!appUrl) {
+                      // Solo usar VERCEL_URL si no es una URL de preview (las preview URLs contienen el ID del deployment)
+                      if (process.env.VERCEL_URL && !process.env.VERCEL_URL.includes('-p3o3tco01-')) {
+                        appUrl = `https://${process.env.VERCEL_URL}`
+                      } else {
+                        appUrl = 'http://localhost:3000'
+                        console.warn('⚠️ NEXT_PUBLIC_APP_URL no configurado, usando localhost. Configura NEXT_PUBLIC_APP_URL en Vercel.')
+                      }
+                    }
+                    
                     const emailEndpoint = `${appUrl}/api/send-tickets-email`
                     
                     console.log(`📧 Intentando enviar email para compra ${purchaseId} a ${purchaseData.guest_email} usando endpoint: ${emailEndpoint}`)
@@ -451,9 +462,20 @@ export async function POST(request: NextRequest) {
                 // Solo enviar email si no se envió antes (webhook no llegó o no procesó el email)
                 if (!existingWebhookLog && purchaseData.guest_email) {
                   // Construir URL del endpoint de email
-                  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL 
-                    ? `https://${process.env.VERCEL_URL}` 
-                    : 'http://localhost:3000'
+                  // Priorizar NEXT_PUBLIC_APP_URL (debe estar configurado en producción)
+                  // Solo usar VERCEL_URL si NEXT_PUBLIC_APP_URL no está configurado Y no es una URL de preview
+                  let appUrl = process.env.NEXT_PUBLIC_APP_URL
+                  
+                  if (!appUrl) {
+                    // Solo usar VERCEL_URL si no es una URL de preview (las preview URLs contienen el ID del deployment)
+                    if (process.env.VERCEL_URL && !process.env.VERCEL_URL.includes('-p3o3tco01-')) {
+                      appUrl = `https://${process.env.VERCEL_URL}`
+                    } else {
+                      appUrl = 'http://localhost:3000'
+                      console.warn('⚠️ NEXT_PUBLIC_APP_URL no configurado, usando localhost. Configura NEXT_PUBLIC_APP_URL en Vercel.')
+                    }
+                  }
+                  
                   const emailEndpoint = `${appUrl}/api/send-tickets-email`
                   
                   console.log(`📧 Intentando enviar email para compra ${purchaseId} a ${purchaseData.guest_email} usando endpoint: ${emailEndpoint}`)
