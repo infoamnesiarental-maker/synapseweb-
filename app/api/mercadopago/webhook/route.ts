@@ -432,6 +432,12 @@ export async function POST(request: NextRequest) {
             
             console.log(`📧 [WEBHOOK] Intentando enviar email para compra ${purchaseId} a ${purchase.guest_email} usando endpoint: ${emailEndpoint}`)
             
+            // Crear AbortController para timeout
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => {
+              controller.abort()
+            }, 30000) // 30 segundos de timeout
+            
             // Enviar email de forma asíncrona (no bloquea la respuesta)
             fetch(emailEndpoint, {
               method: 'POST',
@@ -443,8 +449,11 @@ export async function POST(request: NextRequest) {
                 email: purchase.guest_email || undefined,
                 userName: purchase.guest_name || undefined,
               }),
+              signal: controller.signal,
             })
             .then(async (response) => {
+              clearTimeout(timeoutId)
+              
               if (!response.ok) {
                 const errorText = await response.text()
                 console.error(`❌ [WEBHOOK] Error enviando email: ${response.status} ${response.statusText} - ${errorText}`)
@@ -454,7 +463,17 @@ export async function POST(request: NextRequest) {
               }
             })
             .catch((err) => {
-              console.error('❌ [WEBHOOK] Error enviando email:', err)
+              clearTimeout(timeoutId)
+              
+              if (err.name === 'AbortError') {
+                console.error(`❌ [WEBHOOK] Timeout enviando email (30s) para compra ${purchaseId}`)
+              } else {
+                console.error(`❌ [WEBHOOK] Error de red/enviando email para compra ${purchaseId}:`, {
+                  error: err.message || err,
+                  name: err.name,
+                  stack: err.stack,
+                })
+              }
             })
           }
         } else {

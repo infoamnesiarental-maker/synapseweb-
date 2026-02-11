@@ -478,7 +478,13 @@ export async function POST(request: NextRequest) {
                   
                   const emailEndpoint = `${appUrl}/api/send-tickets-email`
                   
-                  console.log(`📧 Intentando enviar email para compra ${purchaseId} a ${purchaseData.guest_email} usando endpoint: ${emailEndpoint}`)
+                  console.log(`📧 [CHECK-PAYMENT] Intentando enviar email para compra ${purchaseId} a ${purchaseData.guest_email} usando endpoint: ${emailEndpoint}`)
+                  
+                  // Crear AbortController para timeout
+                  const controller = new AbortController()
+                  const timeoutId = setTimeout(() => {
+                    controller.abort()
+                  }, 30000) // 30 segundos de timeout
                   
                   // Enviar email de forma asíncrona (no bloquea la respuesta)
                   fetch(emailEndpoint, {
@@ -491,18 +497,31 @@ export async function POST(request: NextRequest) {
                       email: purchaseData.guest_email,
                       userName: purchaseData.guest_name || undefined,
                     }),
+                    signal: controller.signal,
                   })
                   .then(async (response) => {
+                    clearTimeout(timeoutId)
+                    
                     if (!response.ok) {
                       const errorText = await response.text()
-                      console.error(`❌ Error enviando email: ${response.status} ${response.statusText} - ${errorText}`)
+                      console.error(`❌ [CHECK-PAYMENT] Error enviando email: ${response.status} ${response.statusText} - ${errorText}`)
                     } else {
                       const data = await response.json()
-                      console.log(`✅ Email de tickets enviado exitosamente para compra ${purchaseId}:`, data)
+                      console.log(`✅ [CHECK-PAYMENT] Email de tickets enviado exitosamente para compra ${purchaseId}:`, data)
                     }
                   })
                   .catch((err) => {
-                    console.error('❌ Error enviando email desde check-payment-status (pago ya completado):', err)
+                    clearTimeout(timeoutId)
+                    
+                    if (err.name === 'AbortError') {
+                      console.error(`❌ [CHECK-PAYMENT] Timeout enviando email (30s) para compra ${purchaseId}`)
+                    } else {
+                      console.error(`❌ [CHECK-PAYMENT] Error de red/enviando email para compra ${purchaseId}:`, {
+                        error: err.message || err,
+                        name: err.name,
+                        stack: err.stack,
+                      })
+                    }
                   })
                 } else if (existingWebhookLog) {
                   console.log(`ℹ️ Email ya enviado para compra ${purchaseId} (webhook ya procesado)`)

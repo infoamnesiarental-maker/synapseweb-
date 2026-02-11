@@ -24,11 +24,18 @@ interface SendTicketsEmailParams {
 }
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now()
+  
   try {
+    console.log('📧 [SEND-EMAIL] Endpoint llamado - Iniciando procesamiento')
+    
     const body: SendTicketsEmailParams = await request.json()
     const { purchaseId, email, userName } = body
 
+    console.log('📧 [SEND-EMAIL] Parámetros recibidos:', { purchaseId, email: email ? `${email.substring(0, 3)}***` : 'null', userName })
+
     if (!purchaseId || !email) {
+      console.error('❌ [SEND-EMAIL] Parámetros faltantes:', { purchaseId: !!purchaseId, email: !!email })
       return NextResponse.json(
         { error: 'purchaseId y email son requeridos' },
         { status: 400 }
@@ -36,6 +43,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Obtener datos de la compra desde Supabase
+    console.log('📧 [SEND-EMAIL] Obteniendo compra desde Supabase...')
     const supabase = await createClient()
     
     const { data: purchase, error: purchaseError } = await supabase
@@ -55,14 +63,26 @@ export async function POST(request: NextRequest) {
       .eq('id', purchaseId)
       .single()
 
-    if (purchaseError || !purchase) {
+    if (purchaseError) {
+      console.error('❌ [SEND-EMAIL] Error obteniendo compra:', purchaseError)
+      return NextResponse.json(
+        { error: 'Compra no encontrada', details: purchaseError.message },
+        { status: 404 }
+      )
+    }
+
+    if (!purchase) {
+      console.error('❌ [SEND-EMAIL] Compra no encontrada (null)')
       return NextResponse.json(
         { error: 'Compra no encontrada' },
         { status: 404 }
       )
     }
 
+    console.log('✅ [SEND-EMAIL] Compra obtenida:', { purchaseId, eventId: purchase.event_id, guestEmail: purchase.guest_email ? `${purchase.guest_email.substring(0, 3)}***` : 'null' })
+
     // Obtener tickets de la compra
+    console.log('📧 [SEND-EMAIL] Obteniendo tickets desde Supabase...')
     const { data: tickets, error: ticketsError } = await supabase
       .from('tickets')
       .select(`
@@ -78,12 +98,23 @@ export async function POST(request: NextRequest) {
       .eq('purchase_id', purchaseId)
       .order('created_at', { ascending: true })
 
-    if (ticketsError || !tickets || tickets.length === 0) {
+    if (ticketsError) {
+      console.error('❌ [SEND-EMAIL] Error obteniendo tickets:', ticketsError)
+      return NextResponse.json(
+        { error: 'No se encontraron tickets para esta compra', details: ticketsError.message },
+        { status: 404 }
+      )
+    }
+
+    if (!tickets || tickets.length === 0) {
+      console.error('❌ [SEND-EMAIL] No se encontraron tickets (array vacío o null)')
       return NextResponse.json(
         { error: 'No se encontraron tickets para esta compra' },
         { status: 404 }
       )
     }
+
+    console.log(`✅ [SEND-EMAIL] Tickets obtenidos: ${tickets.length} ticket(s)`)
 
     const event = purchase.event as any
     const eventDate = new Date(event.start_date)
@@ -202,7 +233,10 @@ export async function POST(request: NextRequest) {
       : emailHtml
 
     // Inicializar Resend solo cuando se necesite
+    console.log('📧 [SEND-EMAIL] Inicializando Resend...')
     const resend = getResend()
+    
+    console.log('📧 [SEND-EMAIL] Enviando email a:', recipientEmail)
     
     // Enviar email (sin PDF adjunto - el usuario puede descargarlo desde Mis Compras)
     const { data, error } = await resend.emails.send({
@@ -213,21 +247,33 @@ export async function POST(request: NextRequest) {
     })
 
     if (error) {
-      console.error('Error enviando email:', error)
+      console.error('❌ [SEND-EMAIL] Error enviando email con Resend:', error)
       return NextResponse.json(
-        { error: 'Error al enviar el email' },
+        { error: 'Error al enviar el email', details: error.message || JSON.stringify(error) },
         { status: 500 }
       )
     }
 
+    const duration = Date.now() - startTime
+    console.log(`✅ [SEND-EMAIL] Email enviado exitosamente - messageId: ${data?.id}, duración: ${duration}ms`)
+
     return NextResponse.json({
       success: true,
       messageId: data?.id,
+      duration: `${duration}ms`,
     })
   } catch (error: any) {
-    console.error('Error en send-tickets-email:', error)
+    const duration = Date.now() - startTime
+    console.error('❌ [SEND-EMAIL] Error crítico en send-tickets-email:', {
+      error: error.message || error,
+      stack: error.stack,
+      duration: `${duration}ms`,
+    })
     return NextResponse.json(
-      { error: error.message || 'Error interno del servidor' },
+      { 
+        error: error.message || 'Error interno del servidor',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      },
       { status: 500 }
     )
   }
