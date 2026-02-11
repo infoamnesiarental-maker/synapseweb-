@@ -242,8 +242,16 @@ export async function POST(request: NextRequest) {
 
                   // Solo enviar email si no se envió antes (webhook no llegó o no procesó el email)
                   if (!existingWebhookLog && purchaseData.guest_email) {
+                    // Construir URL del endpoint de email
+                    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL 
+                      ? `https://${process.env.VERCEL_URL}` 
+                      : 'http://localhost:3000'
+                    const emailEndpoint = `${appUrl}/api/send-tickets-email`
+                    
+                    console.log(`📧 Intentando enviar email para compra ${purchaseId} a ${purchaseData.guest_email} usando endpoint: ${emailEndpoint}`)
+                    
                     // Enviar email de forma asíncrona (no bloquea la respuesta)
-                    fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/send-tickets-email`, {
+                    fetch(emailEndpoint, {
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
@@ -253,11 +261,19 @@ export async function POST(request: NextRequest) {
                         email: purchaseData.guest_email,
                         userName: purchaseData.guest_name || undefined,
                       }),
-                    }).catch((err) => {
-                      console.warn('Error enviando email desde check-payment-status (no crítico):', err)
                     })
-                    
-                    console.log(`📧 Email de tickets enviado para compra ${purchaseId} (desde check-payment-status)`)
+                    .then(async (response) => {
+                      if (!response.ok) {
+                        const errorText = await response.text()
+                        console.error(`❌ Error enviando email: ${response.status} ${response.statusText} - ${errorText}`)
+                      } else {
+                        const data = await response.json()
+                        console.log(`✅ Email de tickets enviado exitosamente para compra ${purchaseId}:`, data)
+                      }
+                    })
+                    .catch((err) => {
+                      console.error('❌ Error enviando email desde check-payment-status:', err)
+                    })
                   } else if (existingWebhookLog) {
                     console.log(`ℹ️ Email ya enviado para compra ${purchaseId} (webhook ya procesado)`)
                   } else if (!purchaseData.guest_email) {
@@ -434,8 +450,16 @@ export async function POST(request: NextRequest) {
 
                 // Solo enviar email si no se envió antes (webhook no llegó o no procesó el email)
                 if (!existingWebhookLog && purchaseData.guest_email) {
+                  // Construir URL del endpoint de email
+                  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL 
+                    ? `https://${process.env.VERCEL_URL}` 
+                    : 'http://localhost:3000'
+                  const emailEndpoint = `${appUrl}/api/send-tickets-email`
+                  
+                  console.log(`📧 Intentando enviar email para compra ${purchaseId} a ${purchaseData.guest_email} usando endpoint: ${emailEndpoint}`)
+                  
                   // Enviar email de forma asíncrona (no bloquea la respuesta)
-                  fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/send-tickets-email`, {
+                  fetch(emailEndpoint, {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',
@@ -445,11 +469,19 @@ export async function POST(request: NextRequest) {
                       email: purchaseData.guest_email,
                       userName: purchaseData.guest_name || undefined,
                     }),
-                  }).catch((err) => {
-                    console.warn('Error enviando email desde check-payment-status (pago ya completado, no crítico):', err)
                   })
-                  
-                  console.log(`📧 Email de tickets enviado para compra ${purchaseId} (desde check-payment-status, pago ya completado)`)
+                  .then(async (response) => {
+                    if (!response.ok) {
+                      const errorText = await response.text()
+                      console.error(`❌ Error enviando email: ${response.status} ${response.statusText} - ${errorText}`)
+                    } else {
+                      const data = await response.json()
+                      console.log(`✅ Email de tickets enviado exitosamente para compra ${purchaseId}:`, data)
+                    }
+                  })
+                  .catch((err) => {
+                    console.error('❌ Error enviando email desde check-payment-status (pago ya completado):', err)
+                  })
                 } else if (existingWebhookLog) {
                   console.log(`ℹ️ Email ya enviado para compra ${purchaseId} (webhook ya procesado)`)
                 } else if (!purchaseData.guest_email) {

@@ -396,8 +396,16 @@ export async function POST(request: NextRequest) {
             .single()
 
           if (purchase) {
+            // Construir URL del endpoint de email
+            const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL 
+              ? `https://${process.env.VERCEL_URL}` 
+              : 'http://localhost:3000')
+            const emailEndpoint = `${appUrl}/api/send-tickets-email`
+            
+            console.log(`📧 [WEBHOOK] Intentando enviar email para compra ${purchaseId} a ${purchase.guest_email} usando endpoint: ${emailEndpoint}`)
+            
             // Enviar email de forma asíncrona (no bloquea la respuesta)
-            fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/send-tickets-email`, {
+            fetch(emailEndpoint, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -407,8 +415,18 @@ export async function POST(request: NextRequest) {
                 email: purchase.guest_email || undefined,
                 userName: purchase.guest_name || undefined,
               }),
-            }).catch((err) => {
-              console.warn('Error enviando email (no crítico):', err)
+            })
+            .then(async (response) => {
+              if (!response.ok) {
+                const errorText = await response.text()
+                console.error(`❌ [WEBHOOK] Error enviando email: ${response.status} ${response.statusText} - ${errorText}`)
+              } else {
+                const data = await response.json()
+                console.log(`✅ [WEBHOOK] Email de tickets enviado exitosamente para compra ${purchaseId}:`, data)
+              }
+            })
+            .catch((err) => {
+              console.error('❌ [WEBHOOK] Error enviando email:', err)
             })
           }
         } else {
