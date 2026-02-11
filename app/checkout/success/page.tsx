@@ -38,6 +38,42 @@ function CheckoutSuccessContent() {
 
       setPurchase(purchaseData)
 
+      // ⚠️ NUEVO: Verificar estado del pago automáticamente cuando el usuario vuelve de Mercado Pago
+      // Esto asegura que los tickets se creen y el email se envíe sin depender del webhook o que el usuario entre a /mis-compras
+      if (purchaseData.payment_status === 'pending') {
+        try {
+          console.log('🔄 Verificando estado del pago automáticamente desde checkout/success...')
+          const response = await fetch('/api/mercadopago/check-payment-status', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              purchaseId: purchaseId,
+            }),
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            console.log('✅ Estado del pago verificado:', data)
+            
+            // Si el estado cambió, recargar los datos después de un breve delay
+            // para dar tiempo a que se procesen los tickets/transferencias
+            if (data.updated) {
+              setTimeout(() => {
+                fetchPurchaseData()
+              }, 2000)
+              return
+            }
+          } else {
+            console.warn('⚠️ Error verificando estado del pago:', await response.text())
+          }
+        } catch (error) {
+          console.warn('⚠️ Error verificando estado del pago (no crítico):', error)
+          // Continuar con el flujo normal aunque falle la verificación
+        }
+      }
+
       // Obtener tickets (solo existen si el pago está completado)
       const { data: ticketsData, error: ticketsError } = await supabase
         .from('tickets')

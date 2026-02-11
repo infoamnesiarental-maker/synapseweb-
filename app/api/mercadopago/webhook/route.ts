@@ -102,8 +102,25 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (fetchError || !currentPurchase) {
-        console.error('Error obteniendo compra:', fetchError)
-        return NextResponse.json({ error: 'Error obteniendo compra' }, { status: 500 })
+        // Mejorar logging para debugging
+        console.error('❌ Error obteniendo compra en webhook:', {
+          purchaseId,
+          external_reference: payment.external_reference,
+          payment_id: payment.id,
+          error: fetchError,
+          error_code: fetchError?.code,
+          error_message: fetchError?.message,
+        })
+        
+        // Si la compra no existe, puede ser que el webhook llegó antes de que se creara la compra
+        // o que el external_reference no coincide. En este caso, retornar 200 para que MP no reintente
+        // pero loguear el error para debugging
+        return NextResponse.json({ 
+          error: 'Compra no encontrada',
+          purchaseId,
+          external_reference: payment.external_reference,
+          message: 'La compra no existe en la base de datos. Puede ser que el webhook llegó antes de que se creara la compra, o que el external_reference no coincide con el purchase_id.'
+        }, { status: 200 }) // Retornar 200 para que MP no reintente indefinidamente
       }
 
       // Guardar estado anterior para auditoría
