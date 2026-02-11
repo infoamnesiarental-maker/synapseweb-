@@ -231,6 +231,38 @@ export async function POST(request: NextRequest) {
                   console.error('Error creando tickets desde check-payment-status:', ticketsInsertError)
                 } else {
                   console.log(`✅ ${ticketsToInsert.length} tickets creados para compra ${purchaseId} (desde check-payment-status)`)
+                  
+                  // Enviar email con tickets si se crearon exitosamente
+                  // Verificar si ya se envió el email (usando webhook_logs para idempotencia)
+                  const { data: existingWebhookLog } = await supabase
+                    .from('webhook_logs')
+                    .select('id')
+                    .eq('purchase_id', purchaseId)
+                    .maybeSingle()
+
+                  // Solo enviar email si no se envió antes (webhook no llegó o no procesó el email)
+                  if (!existingWebhookLog && purchaseData.guest_email) {
+                    // Enviar email de forma asíncrona (no bloquea la respuesta)
+                    fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/send-tickets-email`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        purchaseId,
+                        email: purchaseData.guest_email,
+                        userName: purchaseData.guest_name || undefined,
+                      }),
+                    }).catch((err) => {
+                      console.warn('Error enviando email desde check-payment-status (no crítico):', err)
+                    })
+                    
+                    console.log(`📧 Email de tickets enviado para compra ${purchaseId} (desde check-payment-status)`)
+                  } else if (existingWebhookLog) {
+                    console.log(`ℹ️ Email ya enviado para compra ${purchaseId} (webhook ya procesado)`)
+                  } else if (!purchaseData.guest_email) {
+                    console.log(`⚠️ No se puede enviar email para compra ${purchaseId}: no hay guest_email`)
+                  }
                 }
               }
 
@@ -391,6 +423,38 @@ export async function POST(request: NextRequest) {
                 console.error('Error creando tickets desde check-payment-status (pago ya completado):', ticketsInsertError)
               } else {
                 console.log(`✅ ${ticketsToInsert.length} tickets creados para compra ${purchaseId} (desde check-payment-status, pago ya completado)`)
+                
+                // Enviar email con tickets si se crearon exitosamente
+                // Verificar si ya se envió el email (usando webhook_logs para idempotencia)
+                const { data: existingWebhookLog } = await supabase
+                  .from('webhook_logs')
+                  .select('id')
+                  .eq('purchase_id', purchaseId)
+                  .maybeSingle()
+
+                // Solo enviar email si no se envió antes (webhook no llegó o no procesó el email)
+                if (!existingWebhookLog && purchaseData.guest_email) {
+                  // Enviar email de forma asíncrona (no bloquea la respuesta)
+                  fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/send-tickets-email`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      purchaseId,
+                      email: purchaseData.guest_email,
+                      userName: purchaseData.guest_name || undefined,
+                    }),
+                  }).catch((err) => {
+                    console.warn('Error enviando email desde check-payment-status (pago ya completado, no crítico):', err)
+                  })
+                  
+                  console.log(`📧 Email de tickets enviado para compra ${purchaseId} (desde check-payment-status, pago ya completado)`)
+                } else if (existingWebhookLog) {
+                  console.log(`ℹ️ Email ya enviado para compra ${purchaseId} (webhook ya procesado)`)
+                } else if (!purchaseData.guest_email) {
+                  console.log(`⚠️ No se puede enviar email para compra ${purchaseId}: no hay guest_email`)
+                }
               }
             }
 
