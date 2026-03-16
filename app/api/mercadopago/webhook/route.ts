@@ -108,16 +108,52 @@ export async function POST(request: NextRequest) {
         console.log('✅ Encontrada compra con UUID, usando payment_provider_id real:', purchase.payment_provider_id)
         paymentId = purchase.payment_provider_id.toString()
       } else {
-        console.error('❌ No se encontró compra con ese UUID o no tiene payment_provider_id:', {
-          purchaseId: paymentId,
-          purchase,
-          error: purchaseError
-        })
-        // Retornar 200 para que Mercado Pago no reintente, pero loguear el error
-        return NextResponse.json({ 
-          error: 'Payment ID inválido (UUID recibido y no se encontró compra asociada)',
-          received: paymentId
-        }, { status: 200 })
+        // Si no encontramos la compra, puede ser que Mercado Pago esté enviando el external_reference
+        // Intentar buscar pagos recientes con ese external_reference
+        console.log('⚠️ No se encontró compra con UUID, intentando buscar pago en Mercado Pago por external_reference:', paymentId)
+        
+        const mpAccessToken = process.env.MERCADOPAGO_ACCESS_TOKEN
+        if (mpAccessToken) {
+          try {
+            // Buscar pagos recientes con ese external_reference
+            const searchResponse = await fetch(
+              `https://api.mercadopago.com/v1/payments/search?external_reference=${paymentId}&sort=date_created&criteria=desc&limit=1`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${mpAccessToken}`,
+                  'Content-Type': 'application/json',
+                },
+              }
+            )
+            
+            if (searchResponse.ok) {
+              const searchData = await searchResponse.json()
+              if (searchData.results && searchData.results.length > 0) {
+                const foundPayment = searchData.results[0]
+                paymentId = foundPayment.id.toString()
+                console.log('✅ Pago encontrado por external_reference, usando payment_id:', paymentId)
+              } else {
+                console.error('❌ No se encontró pago en Mercado Pago con ese external_reference')
+                return NextResponse.json({ 
+                  error: 'Payment ID inválido (UUID recibido y no se encontró pago asociado)',
+                  received: paymentId
+                }, { status: 200 })
+              }
+            }
+          } catch (searchError) {
+            console.error('❌ Error buscando pago por external_reference:', searchError)
+            return NextResponse.json({ 
+              error: 'Error buscando pago en Mercado Pago',
+              received: paymentId
+            }, { status: 200 })
+          }
+        } else {
+          console.error('❌ MERCADOPAGO_ACCESS_TOKEN no configurado, no se puede buscar pago')
+          return NextResponse.json({ 
+            error: 'Payment ID inválido (UUID recibido y no se encontró compra asociada)',
+            received: paymentId
+          }, { status: 200 })
+        }
       }
     }
     
