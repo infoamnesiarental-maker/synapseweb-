@@ -193,28 +193,47 @@ export default function CheckoutWizard({ tickets: initialTickets, eventId, event
     setErrors({})
   }
 
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
   const handleConfirmPurchase = async () => {
+    // Protección contra doble submit
+    if (loading || isSubmitting) {
+      console.warn('⚠️ Intento de doble submit bloqueado')
+      return
+    }
+
     if (!acceptedTerms) {
       setErrors({ terms: 'Debes aceptar los términos y condiciones' })
       return
     }
 
-    const result = await createPurchase({
-      tickets,
-      eventId,
-      userId: user?.id,
-      guestEmail: buyerData.email,
-      guestName: `${buyerData.firstName} ${buyerData.lastName}`,
-      guestPhone: buyerData.phone,
-    })
+    setIsSubmitting(true)
 
-    if (result.success) {
-      // Si hay una URL de pago de Mercado Pago, redirigir allí
-      if (result.paymentUrl) {
-        window.location.href = result.paymentUrl
-      } else {
-        // Si no hay URL (modo desarrollo/simulado), redirigir a success
-        router.push(`/checkout/success?purchaseId=${result.purchaseId}`)
+    try {
+      const result = await createPurchase({
+        tickets,
+        eventId,
+        userId: user?.id,
+        guestEmail: buyerData.email,
+        guestName: `${buyerData.firstName} ${buyerData.lastName}`,
+        guestPhone: buyerData.phone,
+      })
+
+      if (result.success) {
+        // Si hay una URL de pago de Mercado Pago, redirigir allí
+        if (result.paymentUrl) {
+          window.location.href = result.paymentUrl
+        } else {
+          // Si no hay URL (modo desarrollo/simulado), redirigir a success
+          router.push(`/checkout/success?purchaseId=${result.purchaseId}`)
+        }
+      }
+    } catch (error) {
+      console.error('Error en handleConfirmPurchase:', error)
+    } finally {
+      // No resetear isSubmitting si hay redirección (para prevenir doble submit)
+      if (!loading) {
+        setTimeout(() => setIsSubmitting(false), 1000)
       }
     }
   }
@@ -796,7 +815,7 @@ export default function CheckoutWizard({ tickets: initialTickets, eventId, event
           <div className="flex-1" />
           <motion.button
             onClick={handleNext}
-            disabled={loading || (currentStep === 4 && !acceptedTerms)}
+            disabled={loading || isSubmitting || (currentStep === 4 && !acceptedTerms)}
             whileHover={{ scale: loading || (currentStep === 4 && !acceptedTerms) ? 1 : 1.05 }}
             whileTap={{ scale: loading || (currentStep === 4 && !acceptedTerms) ? 1 : 0.95 }}
             className="px-8 py-3 bg-purple-vibrant hover:bg-[#9333EA] text-white font-bold rounded-[32px] transition-all duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_24px_rgba(168,85,247,0.4)] hover:shadow-[0_0_32px_rgba(168,85,247,0.6)] hover:scale-105 active:scale-95"

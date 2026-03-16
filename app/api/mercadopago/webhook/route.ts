@@ -22,15 +22,38 @@ export async function POST(request: NextRequest) {
     // Leer el body como texto primero (solo se puede leer una vez)
     const bodyText = await request.text()
     
+    // Log completo del request para debugging
+    const requestUrl = request.url
+    const headers = Object.fromEntries(request.headers.entries())
+    
+    console.log('🔍 [WEBHOOK DEBUG] Request completo:', {
+      url: requestUrl,
+      method: request.method,
+      headers: {
+        'content-type': headers['content-type'],
+        'user-agent': headers['user-agent'],
+        'x-request-id': headers['x-request-id'],
+      },
+      bodyLength: bodyText.length,
+      bodyPreview: bodyText.substring(0, 500)
+    })
+    
     // Intentar parsear como JSON
     try {
       const body = JSON.parse(bodyText)
       type = body?.type
       data = body?.data
       paymentId = data?.id?.toString() || body?.id?.toString() || body?.payment_id?.toString()
+      
+      console.log('✅ [WEBHOOK DEBUG] Body parseado como JSON:', {
+        type,
+        data,
+        paymentId,
+        bodyKeys: Object.keys(body)
+      })
     } catch (error) {
       // Si no es JSON válido, el body puede estar vacío o en otro formato
-      console.log('⚠️ Body no es JSON válido, intentando leer de query params')
+      console.log('⚠️ Body no es JSON válido, intentando leer de query params. Error:', error)
     }
     
     // Si no tenemos payment_id del body, intentar de query params
@@ -38,6 +61,14 @@ export async function POST(request: NextRequest) {
       const { searchParams } = new URL(request.url)
       type = type || searchParams.get('type') || undefined
       paymentId = searchParams.get('data.id') || searchParams.get('id') || undefined
+      
+      console.log('🔍 [WEBHOOK DEBUG] Query params:', {
+        type: searchParams.get('type'),
+        dataId: searchParams.get('data.id'),
+        id: searchParams.get('id'),
+        allParams: Object.fromEntries(searchParams.entries())
+      })
+      
       if (paymentId && !data) {
         data = { id: paymentId }
       }
@@ -46,10 +77,63 @@ export async function POST(request: NextRequest) {
     console.log('📥 Webhook recibido de Mercado Pago:', { type, data, paymentId, bodyText: bodyText.substring(0, 200) })
     
     if (!paymentId) {
-      console.error('⚠️ Payment ID no encontrado en webhook. Body:', bodyText.substring(0, 500))
+      console.error('⚠️ Payment ID no encontrado en webhook. Body completo:', bodyText)
       // Retornar 200 para que Mercado Pago no reintente indefinidamente
       return NextResponse.json({ error: 'Payment ID no encontrado' }, { status: 200 })
     }
+
+    // VALIDACIÓN CRÍTICA: Mercado Pago siempre envía payment_id numéricos (ej: "145137944075")
+    // Si recibimos un UUID, es probable que sea un purchase_id y debemos rechazarlo
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(paymentId)
+    const isNumeric = /^\d+$/.test(paymentId)
+    
+    if (isUUID) {
+      console.error('❌ ERROR CRÍTICO: Webhook recibió UUID en lugar de payment_id numérico:', {
+        received: paymentId,
+        type: 'UUID (probablemente purchase_id)',
+        bodyText: bodyText,
+        url: request.url,
+        headers: Object.fromEntries(request.headers.entries())
+      })
+      
+      // SOLUCIÓN TEMPORAL: Si recibimos un UUID, intentar buscar la compra y obtener el payment_provider_id real
+      const supabase = await createClient()
+      const { data: purchase, error: purchaseError } = await supabase
+        .from('purchases')
+        .select('id, payment_provider_id, payment_status')
+        .eq('id', paymentId)
+        .maybeSingle()
+      
+      if (purchase && purchase.payment_provider_id) {
+        console.log('✅ Encontrada compra con UUID, usando payment_provider_id real:', purchase.payment_provider_id)
+        paymentId = purchase.payment_provider_id.toString()
+      } else {
+        console.error('❌ No se encontró compra con ese UUID o no tiene payment_provider_id:', {
+          purchaseId: paymentId,
+          purchase,
+          error: purchaseError
+        })
+        // Retornar 200 para que Mercado Pago no reintente, pero loguear el error
+        return NextResponse.json({ 
+          error: 'Payment ID inválido (UUID recibido y no se encontró compra asociada)',
+          received: paymentId
+        }, { status: 200 })
+      }
+    }
+    
+    if (!isNumeric) {
+      console.error('❌ ERROR: Payment ID no es numérico:', {
+        received: paymentId,
+        bodyText: bodyText,
+        url: request.url
+      })
+      return NextResponse.json({ 
+        error: 'Payment ID debe ser numérico',
+        received: paymentId
+      }, { status: 200 })
+    }
+
+    console.log('✅ Payment ID válido (numérico):', paymentId)
 
     // Obtener información del pago desde Mercado Pago
     // Nota: En producción, deberías validar la firma del webhook para seguridad
