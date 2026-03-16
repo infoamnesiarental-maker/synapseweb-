@@ -41,6 +41,25 @@ export function useCheckout() {
     setError(null)
 
     try {
+      // Validación crítica: Verificar que el evento no haya finalizado
+      const { data: eventData, error: eventError } = await supabase
+        .from('events')
+        .select('end_date, status, producer_id')
+        .eq('id', params.eventId)
+        .single()
+
+      if (eventError || !eventData) {
+        throw new Error('Error obteniendo información del evento')
+      }
+
+      const now = new Date()
+      const eventEndDate = new Date(eventData.end_date)
+      const isEventFinished = eventEndDate < now || eventData.status === 'finished'
+
+      if (isEventFinished) {
+        throw new Error('No se pueden comprar entradas para un evento que ya finalizó')
+      }
+
       // Calcular precios
       const totalBreakdown = calculateTotalPrice(
         params.tickets.map((t) => ({
@@ -103,16 +122,7 @@ export function useCheckout() {
       // Esto previene que se generen tickets para pagos rechazados
 
       // Crear registro de transferencia pendiente
-      // Primero obtener el producer_id del evento
-      const { data: eventData, error: eventError } = await supabase
-        .from('events')
-        .select('producer_id')
-        .eq('id', params.eventId)
-        .single()
-
-      if (eventError || !eventData) {
-        throw new Error(`Error obteniendo evento: ${eventError?.message}`)
-      }
+      // Ya tenemos producer_id de la consulta anterior (eventData.producer_id)
 
       // ⚠️ IMPORTANTE: NO crear transferencia aquí
       // Las transferencias se crearán SOLO cuando el pago se complete en el webhook

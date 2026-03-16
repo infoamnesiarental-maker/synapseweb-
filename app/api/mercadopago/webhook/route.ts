@@ -208,9 +208,10 @@ export async function POST(request: NextRequest) {
       }
 
       // ============================================
-      // IDEMPOTENCIA: Registrar que este webhook se procesó
+      // IDEMPOTENCIA: Intentar registrar que este webhook se procesó
+      // Si falla por duplicate key, significa que otra llamada ya lo procesó
       // ============================================
-      const { error: webhookLogError } = await supabase
+      const { data: newWebhookLog, error: webhookLogError } = await supabase
         .from('webhook_logs')
         .insert({
           payment_id: paymentId.toString(),
@@ -219,10 +220,23 @@ export async function POST(request: NextRequest) {
           payment_status: paymentStatus,
           webhook_data: payment,
         })
+        .select()
+        .single()
 
       if (webhookLogError) {
-        // Si falla (ej: duplicado por race condition), no es crítico
-        // El UNIQUE constraint en payment_id ya previene duplicados
+        // Si falla por duplicate key (código 23505), significa que otra llamada ya procesó este webhook
+        if (webhookLogError.code === '23505') {
+          console.log(`ℹ️ Webhook ya procesado por otra llamada (race condition detectada) para payment_id ${paymentId}`)
+          // Retornar éxito sin procesar más (idempotencia)
+          return NextResponse.json({ 
+            success: true, 
+            purchaseId, 
+            status: paymentStatus,
+            message: 'Webhook ya procesado por otra llamada',
+            alreadyProcessed: true
+          })
+        }
+        // Otros errores no son críticos pero los registramos
         console.warn('⚠️ Error registrando webhook log (no crítico):', webhookLogError)
       }
 
@@ -403,9 +417,17 @@ export async function POST(request: NextRequest) {
           console.log(`ℹ️ Transferencia ya existe para compra ${purchaseId}`)
         }
 
-        // Verificar si ya se envió el email (usando webhook_logs para idempotencia)
-        // Solo enviar email si este webhook no se procesó antes
-        if (!existingWebhookLog) {
+        // Verificar si ya se envió el email
+        // Estrategia robusta: Si ya existen tickets, significa que el webhook ya se procesó y el email ya se envió
+        // Esto es más confiable que depender de webhook_logs (que puede fallar por RLS)
+        const { data: existingTicketsForEmail } = await supabase
+          .from('tickets')
+          .select('id')
+          .eq('purchase_id', purchaseId)
+          .limit(1)
+        
+        // Solo enviar email si NO existen tickets (significa que es la primera vez que se procesa)
+        if (!existingTicketsForEmail || existingTicketsForEmail.length === 0) {
           const { data: purchase } = await supabase
             .from('purchases')
             .select('user_id, guest_email, guest_name')

@@ -70,10 +70,20 @@ export default function EventDetail({ slug }: EventDetailProps) {
 
   // Filtrar tickets disponibles (que no estén agotados y estén en fecha de venta)
   const now = new Date()
+  
+  // Validación crítica: Si el evento ya finalizó, no se pueden comprar tickets
+  const eventEndDate = new Date(event.end_date)
+  const isEventFinished = eventEndDate < now || event.status === 'finished'
+  
   const availableTickets = event.ticket_types.filter((tt) => {
+    // Si el evento ya finalizó, ningún ticket está disponible
+    if (isEventFinished) {
+      return false
+    }
+    
     const available = tt.quantity_available - tt.quantity_sold > 0
     
-    // Si no hay fechas de venta configuradas, el ticket está disponible
+    // Si no hay fechas de venta configuradas, el ticket está disponible (solo si el evento no finalizó)
     if (!tt.sale_start_date && !tt.sale_end_date) {
       return available
     }
@@ -231,10 +241,22 @@ export default function EventDetail({ slug }: EventDetailProps) {
                 </p>
               )}
 
+              {isEventFinished && (
+                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-xl">
+                  <p className="text-red-400 font-semibold text-center">
+                    ⚠️ Este evento ya finalizó. No se pueden comprar más entradas.
+                  </p>
+                </div>
+              )}
+              
               {availableTickets.length === 0 ? (
                 <div className="text-center py-8">
                   <Ticket className="w-12 h-12 text-white/30 mx-auto mb-4" />
-                  <p className="text-white/60 mb-2">No hay entradas disponibles</p>
+                  <p className="text-white/60 mb-2">
+                    {isEventFinished 
+                      ? 'Este evento ya finalizó' 
+                      : 'No hay entradas disponibles'}
+                  </p>
                   {event.ticket_types.length > 0 && (
                     <div className="mt-4 space-y-2 text-left">
                       <p className="text-white/40 text-xs mb-2">Tickets en la base de datos:</p>

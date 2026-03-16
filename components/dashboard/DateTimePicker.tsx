@@ -11,6 +11,7 @@ interface DateTimePickerProps {
   label: string
   required?: boolean
   minDate?: Date
+  disabled?: boolean
 }
 
 export default function DateTimePicker({
@@ -19,6 +20,7 @@ export default function DateTimePicker({
   label,
   required = false,
   minDate,
+  disabled = false,
 }: DateTimePickerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -130,13 +132,18 @@ export default function DateTimePicker({
       </label>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white text-left focus:outline-none focus:border-[#A855F7]/50 focus:ring-2 focus:ring-[#A855F7]/20 transition-all duration-300 hover:border-[#A855F7]/30"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+        className={`w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white text-left focus:outline-none focus:border-[#A855F7]/50 focus:ring-2 focus:ring-[#A855F7]/20 transition-all duration-300 ${
+          disabled 
+            ? 'opacity-50 cursor-not-allowed' 
+            : 'hover:border-[#A855F7]/30 cursor-pointer'
+        }`}
       >
         {displayValue}
       </button>
 
-      {isOpen && (
+      {isOpen && !disabled && (
         <div className="absolute z-50 mt-2 bg-[#1F1F1F] border-2 border-[#2F2F2F] rounded-2xl shadow-2xl overflow-hidden w-[700px]">
           <div className="flex">
             {/* Calendario */}

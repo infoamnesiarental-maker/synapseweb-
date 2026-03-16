@@ -69,6 +69,7 @@ export default function CreateEventWizard({ eventId }: CreateEventWizardProps = 
   // Paso 4: Publicar
   const [status, setStatus] = useState<'draft' | 'published'>('draft')
 
+
   // Estados de UI
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -193,6 +194,23 @@ export default function CreateEventWizard({ eventId }: CreateEventWizardProps = 
     return null
   }
 
+  // Helper: Verificar si el evento está finalizado
+  // Regla: Solo se basa en la fecha de fin del evento ACTUAL (no historial)
+  // Si fecha_fin_evento > fecha_actual → permitir editar
+  // Si fecha_fin_evento < fecha_actual → bloquear edición
+  const isEventFinished = (): boolean => {
+    // Si no hay fecha de fin configurada, considerar como no finalizado
+    if (!endDate || !endTime) {
+      return false
+    }
+    
+    const now = new Date()
+    const eventEndDateTime = new Date(`${endDate}T${endTime}`)
+    
+    // Solo validar basándose en la fecha actual del formulario
+    return eventEndDateTime < now
+  }
+
   const validateStep1 = (): boolean => {
     if (!name.trim()) {
       setError('El nombre del evento es obligatorio')
@@ -212,6 +230,7 @@ export default function CreateEventWizard({ eventId }: CreateEventWizardProps = 
       setError('La fecha de fin debe ser posterior a la fecha de inicio')
       return false
     }
+    
     return true
   }
 
@@ -224,6 +243,16 @@ export default function CreateEventWizard({ eventId }: CreateEventWizardProps = 
   }
 
   const validateStep3 = (): boolean => {
+    const now = new Date()
+    const eventFinished = isEventFinished()
+    
+    // Validación principal: Si la fecha de fin del evento ya pasó, no permitir habilitar venta
+    if (eventFinished) {
+      setError('No se puede habilitar la venta de entradas para un evento que ya finalizó')
+      return false
+    }
+    
+    // Validar datos básicos de tickets
     for (const ticket of tickets) {
       if (!ticket.name.trim()) {
         setError('Todos los tickets deben tener un nombre')
@@ -243,6 +272,37 @@ export default function CreateEventWizard({ eventId }: CreateEventWizardProps = 
       }
       if (!ticket.sale_end_date || !ticket.sale_end_time) {
         setError('Todos los tickets deben tener fecha y hora de fin de venta')
+        return false
+      }
+      
+      // Validación 3: La fecha de apertura de venta no puede ser posterior a la fecha del evento
+      const saleStartDateTime = new Date(`${ticket.sale_start_date}T${ticket.sale_start_time}`)
+      const saleEndDateTime = new Date(`${ticket.sale_end_date}T${ticket.sale_end_time}`)
+      
+      if (endDate && endTime) {
+        const eventEndDateTime = new Date(`${endDate}T${endTime}`)
+        
+        if (saleStartDateTime > eventEndDateTime) {
+          setError(`La fecha de apertura de venta del ticket "${ticket.name}" no puede ser posterior a la fecha de fin del evento`)
+          return false
+        }
+        
+        // Validación 4: La fecha de cierre de venta no puede ser posterior a la fecha del evento
+        if (saleEndDateTime > eventEndDateTime) {
+          setError(`La fecha de cierre de venta del ticket "${ticket.name}" no puede ser posterior a la fecha de fin del evento`)
+          return false
+        }
+      }
+      
+      // Validación 5: No se puede abrir una ventana de venta si la fecha de cierre ya pasó
+      if (saleEndDateTime < now) {
+        setError(`No se puede abrir una ventana de venta para el ticket "${ticket.name}" si la fecha de cierre ya pasó`)
+        return false
+      }
+      
+      // Validación 6: La fecha de fin de venta debe ser posterior a la fecha de inicio de venta
+      if (saleEndDateTime <= saleStartDateTime) {
+        setError(`La fecha de fin de venta del ticket "${ticket.name}" debe ser posterior a la fecha de inicio de venta`)
         return false
       }
     }
@@ -303,6 +363,52 @@ export default function CreateEventWizard({ eventId }: CreateEventWizardProps = 
       if (!validateStep1() || !validateStep2() || !validateStep3()) {
         setLoading(false)
         return
+      }
+      
+      // Validaciones adicionales antes de guardar (reglas de negocio críticas)
+      const now = new Date()
+      const eventFinished = isEventFinished()
+      
+      // Validación crítica: Si la fecha de fin del evento ya pasó, bloquear cualquier cambio en fechas de venta
+      if (eventFinished) {
+        setError('No se pueden modificar las fechas de venta de entradas para un evento que ya finalizó')
+        setLoading(false)
+        return
+      }
+      
+      // Verificar que las fechas de venta no sean posteriores a la fecha de fin del evento
+      const eventEndDateTime = new Date(`${endDate}T${endTime}`)
+      
+      for (const ticket of tickets) {
+        const saleStartDateTime = new Date(`${ticket.sale_start_date}T${ticket.sale_start_time}`)
+        const saleEndDateTime = new Date(`${ticket.sale_end_date}T${ticket.sale_end_time}`)
+        
+        // Si la fecha de fin del evento ya pasó, no permitir ninguna venta
+        if (eventEndDateTime < now) {
+          setError('No se puede habilitar la venta de entradas porque la fecha de fin del evento ya pasó')
+          setLoading(false)
+          return
+        }
+        
+        // Verificar que las fechas de venta no sean posteriores a la fecha del evento
+        if (saleStartDateTime > eventEndDateTime) {
+          setError(`La fecha de apertura de venta del ticket "${ticket.name}" no puede ser posterior a la fecha de fin del evento`)
+          setLoading(false)
+          return
+        }
+        
+        if (saleEndDateTime > eventEndDateTime) {
+          setError(`La fecha de cierre de venta del ticket "${ticket.name}" no puede ser posterior a la fecha de fin del evento`)
+          setLoading(false)
+          return
+        }
+        
+        // Verificar que no se esté abriendo una ventana de venta con fecha de cierre pasada
+        if (saleEndDateTime < now) {
+          setError(`No se puede abrir una ventana de venta para el ticket "${ticket.name}" si la fecha de cierre ya pasó`)
+          setLoading(false)
+          return
+        }
       }
 
       // Subir imagen solo si hay una seleccionada (y no está ya subida)
@@ -402,9 +508,9 @@ export default function CreateEventWizard({ eventId }: CreateEventWizardProps = 
         console.log('ℹ️ No hay nueva imagen, manteniendo URL existente:', finalFlyerUrl)
       }
 
-      // Combinar fechas y horas
+      // Combinar fechas y horas (reutilizar eventEndDateTime de las validaciones anteriores)
       const startDateTime = new Date(`${startDate}T${startTime}`).toISOString()
-      const endDateTime = new Date(`${endDate}T${endTime}`).toISOString()
+      const endDateTime = eventEndDateTime.toISOString()
 
       if (isEditMode && eventId) {
         // MODO EDICIÓN: Actualizar evento existente
@@ -992,6 +1098,13 @@ export default function CreateEventWizard({ eventId }: CreateEventWizardProps = 
                     <h4 className="text-sm font-bold uppercase tracking-wide mb-4 text-lightGray">
                       Fechas de Venta
                     </h4>
+                    {isEventFinished() && (
+                      <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/50 rounded-lg">
+                        <p className="text-yellow-400 text-sm">
+                          ⚠️ Este evento ya finalizó. No se pueden modificar las fechas de venta de entradas.
+                        </p>
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <DateTimePicker
                         value={{ date: ticket.sale_start_date, time: ticket.sale_start_time }}
@@ -1007,6 +1120,7 @@ export default function CreateEventWizard({ eventId }: CreateEventWizardProps = 
                         label="Inicio de Venta"
                         required
                         minDate={new Date()}
+                        disabled={isEventFinished()}
                       />
                       <DateTimePicker
                         value={{ date: ticket.sale_end_date, time: ticket.sale_end_time }}
@@ -1026,6 +1140,7 @@ export default function CreateEventWizard({ eventId }: CreateEventWizardProps = 
                             ? new Date(`${ticket.sale_start_date}T${ticket.sale_start_time}`)
                             : new Date()
                         }
+                        disabled={isEventFinished()}
                       />
                     </div>
                   </div>
