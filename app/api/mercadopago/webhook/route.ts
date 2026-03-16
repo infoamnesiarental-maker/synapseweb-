@@ -84,11 +84,13 @@ export async function POST(request: NextRequest) {
 
     // VALIDACIÓN CRÍTICA: Mercado Pago siempre envía payment_id numéricos (ej: "145137944075")
     // Si recibimos un UUID, es probable que sea un purchase_id y debemos rechazarlo
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(paymentId)
+    // A partir de aquí trabajamos con una variable local no-nullable para que TypeScript esté conforme
+    let resolvedPaymentId: string = paymentId
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedPaymentId)
     
     if (isUUID) {
       console.error('❌ ERROR CRÍTICO: Webhook recibió UUID en lugar de payment_id numérico:', {
-        received: paymentId,
+        received: resolvedPaymentId,
         type: 'UUID (probablemente purchase_id)',
         bodyText: bodyText,
         url: request.url,
@@ -100,23 +102,23 @@ export async function POST(request: NextRequest) {
       const { data: purchase, error: purchaseError } = await supabase
         .from('purchases')
         .select('id, payment_provider_id, payment_status')
-        .eq('id', paymentId)
+        .eq('id', resolvedPaymentId)
         .maybeSingle()
       
       if (purchase && purchase.payment_provider_id) {
         console.log('✅ Encontrada compra con UUID, usando payment_provider_id real:', purchase.payment_provider_id)
-        paymentId = purchase.payment_provider_id.toString()
+        resolvedPaymentId = purchase.payment_provider_id.toString()
       } else {
         // Si no encontramos la compra, puede ser que Mercado Pago esté enviando el external_reference
         // Intentar buscar pagos recientes con ese external_reference
-        console.log('⚠️ No se encontró compra con UUID, intentando buscar pago en Mercado Pago por external_reference:', paymentId)
+        console.log('⚠️ No se encontró compra con UUID, intentando buscar pago en Mercado Pago por external_reference:', resolvedPaymentId)
         
         const mpAccessToken = process.env.MERCADOPAGO_ACCESS_TOKEN
         if (mpAccessToken) {
           try {
             // Buscar pagos recientes con ese external_reference
             const searchResponse = await fetch(
-              `https://api.mercadopago.com/v1/payments/search?external_reference=${paymentId}&sort=date_created&criteria=desc&limit=1`,
+              `https://api.mercadopago.com/v1/payments/search?external_reference=${resolvedPaymentId}&sort=date_created&criteria=desc&limit=1`,
               {
                 headers: {
                   'Authorization': `Bearer ${mpAccessToken}`,
@@ -129,13 +131,13 @@ export async function POST(request: NextRequest) {
               const searchData = await searchResponse.json()
               if (searchData.results && searchData.results.length > 0) {
                 const foundPayment = searchData.results[0]
-                paymentId = foundPayment.id.toString()
-                console.log('✅ Pago encontrado por external_reference, usando payment_id:', paymentId)
+                resolvedPaymentId = foundPayment.id.toString()
+                console.log('✅ Pago encontrado por external_reference, usando payment_id:', resolvedPaymentId)
               } else {
                 console.error('❌ No se encontró pago en Mercado Pago con ese external_reference')
                 return NextResponse.json({ 
                   error: 'Payment ID inválido (UUID recibido y no se encontró pago asociado)',
-                  received: paymentId
+                  received: resolvedPaymentId
                 }, { status: 200 })
               }
             }
@@ -143,44 +145,44 @@ export async function POST(request: NextRequest) {
             console.error('❌ Error buscando pago por external_reference:', searchError)
             return NextResponse.json({ 
               error: 'Error buscando pago en Mercado Pago',
-              received: paymentId
+              received: resolvedPaymentId
             }, { status: 200 })
           }
         } else {
           console.error('❌ MERCADOPAGO_ACCESS_TOKEN no configurado, no se puede buscar pago')
           return NextResponse.json({ 
             error: 'Payment ID inválido (UUID recibido y no se encontró compra asociada)',
-            received: paymentId
+            received: resolvedPaymentId
           }, { status: 200 })
         }
       }
     }
     
     // Validar que después de todas las correcciones el paymentId sea numérico
-    if (!/^\d+$/.test(paymentId)) {
+    if (!/^\d+$/.test(resolvedPaymentId)) {
       console.error('❌ ERROR: Payment ID no es numérico después de validaciones:', {
-        received: paymentId,
+        received: resolvedPaymentId,
         bodyText: bodyText,
         url: request.url
       })
       return NextResponse.json({ 
         error: 'Payment ID debe ser numérico',
-        received: paymentId
+        received: resolvedPaymentId
       }, { status: 200 })
     }
 
-    console.log('✅ Payment ID válido (numérico):', paymentId)
+    console.log('✅ Payment ID válido (numérico):', resolvedPaymentId)
 
-    // Verificación final: asegurar que paymentId esté definido
-    if (!paymentId) {
+    // Verificación final: asegurar que resolvedPaymentId esté definido
+    if (!resolvedPaymentId) {
       console.error('❌ ERROR CRÍTICO: paymentId es undefined después de todas las validaciones')
       return NextResponse.json({ 
         error: 'Payment ID no disponible después de validaciones',
       }, { status: 200 })
     }
 
-    // TypeScript: paymentId está garantizado como string en este punto
-    const finalPaymentId: string = paymentId
+    // TypeScript: resolvedPaymentId está garantizado como string en este punto
+    const finalPaymentId: string = resolvedPaymentId
 
     // Obtener información del pago desde Mercado Pago
     // Nota: En producción, deberías validar la firma del webhook para seguridad
