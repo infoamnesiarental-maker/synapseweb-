@@ -171,6 +171,17 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Payment ID válido (numérico):', paymentId)
 
+    // Verificación final: asegurar que paymentId esté definido
+    if (!paymentId) {
+      console.error('❌ ERROR CRÍTICO: paymentId es undefined después de todas las validaciones')
+      return NextResponse.json({ 
+        error: 'Payment ID no disponible después de validaciones',
+      }, { status: 200 })
+    }
+
+    // TypeScript: paymentId está garantizado como string en este punto
+    const finalPaymentId: string = paymentId
+
     // Obtener información del pago desde Mercado Pago
     // Nota: En producción, deberías validar la firma del webhook para seguridad
     const mpAccessToken = process.env.MERCADOPAGO_ACCESS_TOKEN
@@ -181,7 +192,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Consultar el pago en Mercado Pago
-    const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+    const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${finalPaymentId}`, {
         headers: {
           'Authorization': `Bearer ${mpAccessToken}`,
           'Content-Type': 'application/json',
@@ -212,11 +223,11 @@ export async function POST(request: NextRequest) {
       const { data: existingWebhookLog } = await supabase
         .from('webhook_logs')
         .select('id, payment_status, processed_at')
-        .eq('payment_id', paymentId.toString())
+        .eq('payment_id', finalPaymentId)
         .maybeSingle()
 
       if (existingWebhookLog) {
-        console.log(`ℹ️ Webhook ya procesado para payment_id ${paymentId} (procesado el ${existingWebhookLog.processed_at})`)
+        console.log(`ℹ️ Webhook ya procesado para payment_id ${finalPaymentId} (procesado el ${existingWebhookLog.processed_at})`)
         // Retornar éxito sin procesar (idempotencia)
         return NextResponse.json({ 
           success: true, 
@@ -289,7 +300,7 @@ export async function POST(request: NextRequest) {
       // Preservar tickets_data cuando actualizamos payment_provider_data con datos de MP
       const updateData: any = {
         payment_status: paymentStatus,
-        payment_provider_id: paymentId.toString(),
+        payment_provider_id: finalPaymentId,
         payment_provider_data: {
           ...payment,
           tickets_data: ticketsData, // Preservar tickets_data
@@ -340,7 +351,7 @@ export async function POST(request: NextRequest) {
             changed_field: 'payment_status',
             triggered_by: 'mercadopago_webhook',
             metadata: {
-              payment_id: paymentId.toString(),
+              payment_id: finalPaymentId,
               mp_status: payment.status,
             },
           })
@@ -358,7 +369,7 @@ export async function POST(request: NextRequest) {
       const { data: newWebhookLog, error: webhookLogError } = await supabase
         .from('webhook_logs')
         .insert({
-          payment_id: paymentId.toString(),
+          payment_id: finalPaymentId,
           purchase_id: purchaseId,
           webhook_type: type,
           payment_status: paymentStatus,
@@ -370,7 +381,7 @@ export async function POST(request: NextRequest) {
       if (webhookLogError) {
         // Si falla por duplicate key (código 23505), significa que otra llamada ya procesó este webhook
         if (webhookLogError.code === '23505') {
-          console.log(`ℹ️ Webhook ya procesado por otra llamada (race condition detectada) para payment_id ${paymentId}`)
+          console.log(`ℹ️ Webhook ya procesado por otra llamada (race condition detectada) para payment_id ${finalPaymentId}`)
           // Retornar éxito sin procesar más (idempotencia)
           return NextResponse.json({ 
             success: true, 
