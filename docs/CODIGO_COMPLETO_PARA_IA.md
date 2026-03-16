@@ -1,5 +1,51 @@
+# 📦 Código Completo para Análisis de IA
+
+## 📋 Contexto del Problema
+
+**Sistema:** Plataforma de venta de entradas (Next.js + Supabase + Mercado Pago)  
+**Problema:** Webhook de Mercado Pago falla en producción con errores:
+- Error 500: "Payment not found" cuando recibe UUIDs en lugar de payment_id numéricos
+- Error RLS 42501: No puede insertar en `webhook_logs` debido a políticas de seguridad
+- Webhook funcionaba antes (actualizaba pagos) pero no enviaba emails. Ahora está completamente roto.
+
+**Logs de Error:**
+```
+POST 500 /api/mercadopago/webhook
+Error consultando pago en Mercado Pago: {
+  "message":"Payment not found",
+  "error":"not_found",
+  "status":404,
+  "cause":[{
+    "code":2000,
+    "description":"Payment not found",
+    "data":"16-03-2026T02:23:10UTC;459633e8-1403-40fa-a3e8-b0f8ac02db4b"
+  }]
+}
+
+POST 200 /api/mercadopago/webhook
+⚠️ Error registrando webhook log (no crítico): {
+  code: '42501',
+  details: null,
+  hint: null,
+  message: 'new row violates row-level security policy for table "webhook_logs"'
+}
+```
+
+---
+
+## 📁 Archivo 1: `app/api/mercadopago/webhook/route.ts`
+
+**Descripción:** Handler principal del webhook de Mercado Pago. Recibe notificaciones cuando cambia el estado de un pago, actualiza la compra en la BD, crea tickets y envía emails con QR codes.
+
+**Problemas identificados:**
+1. Líneas 85-158: Lógica compleja de detección de UUIDs que falla
+2. Líneas 100, 218: Usa `createClient()` que usa `anon` key (no tiene permisos RLS)
+3. Líneas 223-239: Verificación de idempotencia con `webhook_logs` que falla por RLS
+4. Líneas 369-396: Intento de insertar en `webhook_logs` que falla por RLS
+
+```typescript
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server-admin'
+import { createClient } from '@/lib/supabase/server'
 import { calculateFinancialBreakdown } from '@/lib/utils/pricing'
 
 /**
@@ -85,6 +131,7 @@ export async function POST(request: NextRequest) {
     // VALIDACIÓN CRÍTICA: Mercado Pago siempre envía payment_id numéricos (ej: "145137944075")
     // Si recibimos un UUID, es probable que sea un purchase_id y debemos rechazarlo
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(paymentId)
+    const isNumeric = /^\d+$/.test(paymentId)
     
     if (isUUID) {
       console.error('❌ ERROR CRÍTICO: Webhook recibió UUID en lugar de payment_id numérico:', {
@@ -96,7 +143,7 @@ export async function POST(request: NextRequest) {
       })
       
       // SOLUCIÓN TEMPORAL: Si recibimos un UUID, intentar buscar la compra y obtener el payment_provider_id real
-      const supabase = createAdminClient()
+      const supabase = await createClient()
       const { data: purchase, error: purchaseError } = await supabase
         .from('purchases')
         .select('id, payment_provider_id, payment_status')
@@ -156,9 +203,8 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Validar que después de todas las correcciones el paymentId sea numérico
-    if (!/^\d+$/.test(paymentId)) {
-      console.error('❌ ERROR: Payment ID no es numérico después de validaciones:', {
+    if (!isNumeric) {
+      console.error('❌ ERROR: Payment ID no es numérico:', {
         received: paymentId,
         bodyText: bodyText,
         url: request.url
@@ -215,7 +261,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Actualizar estado de la compra en nuestra base de datos
-      const supabase = createAdminClient()
+      const supabase = await createClient()
 
       // ============================================
       // IDEMPOTENCIA: Verificar si este webhook ya se procesó
@@ -404,8 +450,6 @@ export async function POST(request: NextRequest) {
 
       // Si el pago fue aprobado, crear los tickets, transferencia y enviar email
       if (paymentStatus === 'completed') {
-        // Bandera para saber si creamos tickets en ESTE request
-        let ticketsCreatedThisRequest = false
         // Verificar si ya existen tickets (para evitar duplicados)
         const { data: existingTickets } = await supabase
           .from('tickets')
@@ -509,7 +553,6 @@ export async function POST(request: NextRequest) {
                 if (ticketsInsertError) {
                   console.error('Error creando tickets:', ticketsInsertError)
                 } else {
-                  ticketsCreatedThisRequest = true
                   console.log(`✅ ${ticketsToInsert.length} tickets creados para compra ${purchaseId}`)
                 }
               }
@@ -575,8 +618,17 @@ export async function POST(request: NextRequest) {
           console.log(`ℹ️ Transferencia ya existe para compra ${purchaseId}`)
         }
 
-        // Enviar email solo si en ESTE webhook se crearon tickets (idempotencia robusta)
-        if (ticketsCreatedThisRequest) {
+        // Verificar si ya se envió el email
+        // Estrategia robusta: Si ya existen tickets, significa que el webhook ya se procesó y el email ya se envió
+        // Esto es más confiable que depender de webhook_logs (que puede fallar por RLS)
+        const { data: existingTicketsForEmail } = await supabase
+          .from('tickets')
+          .select('id')
+          .eq('purchase_id', purchaseId)
+          .limit(1)
+        
+        // Solo enviar email si NO existen tickets (significa que es la primera vez que se procesa)
+        if (!existingTicketsForEmail || existingTicketsForEmail.length === 0) {
           const { data: purchase } = await supabase
             .from('purchases')
             .select('user_id, guest_email, guest_name')
@@ -715,3 +767,236 @@ export async function GET(request: NextRequest) {
     timestamp: new Date().toISOString(),
   })
 }
+```
+
+---
+
+## 📁 Archivo 2: `lib/supabase/server.ts`
+
+**Descripción:** Función helper para crear cliente de Supabase en el servidor. Usa `anon` key y maneja cookies para autenticación.
+
+**Problema identificado:**
+- Línea 8: Usa `NEXT_PUBLIC_SUPABASE_ANON_KEY` (anon key)
+- El webhook necesita `SUPABASE_SERVICE_ROLE_KEY` para bypass RLS
+- Este cliente no tiene permisos para insertar en `webhook_logs`
+
+```typescript
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+
+export async function createClient() {
+  const cookieStore = await cookies()
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+      'Missing Supabase environment variables. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your .env file'
+    )
+  }
+
+  // Validar que la URL sea válida
+  try {
+    new URL(supabaseUrl)
+  } catch {
+    throw new Error(
+      'Invalid NEXT_PUBLIC_SUPABASE_URL. Must be a valid HTTP or HTTPS URL (e.g., https://your-project.supabase.co)'
+    )
+  }
+
+  return createServerClient(
+    supabaseUrl,
+    supabaseAnonKey,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+      },
+    }
+  )
+}
+```
+
+---
+
+## 📁 Archivo 3: `supabase/migrations/add_webhook_logs_and_audit_logs.sql`
+
+**Descripción:** Migración SQL que crea las tablas `webhook_logs` y `audit_logs` con políticas RLS para idempotencia y auditoría.
+
+**Problema identificado:**
+- Línea 77: Política RLS dice `WITH CHECK (true)` (debería permitir todo)
+- Pero el cliente de Supabase usa `anon` key que no tiene permisos
+- La política requiere que el cliente tenga permisos adecuados
+
+```sql
+-- ============================================
+-- MIGRACIÓN: Webhook Logs y Audit Logs
+-- ============================================
+-- Agrega tablas para idempotencia de webhooks y auditoría de cambios
+-- 
+-- Fecha: 2025
+-- Versión: 1.0
+-- ============================================
+
+-- ============================================
+-- 1. Tabla: webhook_logs (Idempotencia)
+-- ============================================
+-- Registra qué webhooks ya se procesaron para evitar duplicados
+
+CREATE TABLE IF NOT EXISTS webhook_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  payment_id TEXT NOT NULL UNIQUE, -- ID del pago de Mercado Pago (único para idempotencia)
+  purchase_id UUID NOT NULL REFERENCES purchases(id) ON DELETE CASCADE,
+  webhook_type TEXT NOT NULL, -- 'payment', 'refund', etc.
+  payment_status TEXT NOT NULL, -- Estado del pago cuando se procesó
+  processed_at TIMESTAMPTZ DEFAULT NOW(),
+  webhook_data JSONB, -- Datos completos del webhook (para debugging)
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Índices para webhook_logs
+CREATE INDEX IF NOT EXISTS idx_webhook_logs_payment_id ON webhook_logs(payment_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_logs_purchase_id ON webhook_logs(purchase_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_logs_processed_at ON webhook_logs(processed_at);
+
+-- ============================================
+-- 2. Tabla: audit_logs (Auditoría)
+-- ============================================
+-- Registra todos los cambios importantes en el sistema
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  entity_type TEXT NOT NULL, -- 'purchase', 'transfer', 'ticket', etc.
+  entity_id UUID NOT NULL, -- ID de la entidad que cambió
+  action TEXT NOT NULL, -- 'status_changed', 'created', 'updated', 'deleted'
+  old_value JSONB, -- Valor anterior (opcional)
+  new_value JSONB, -- Valor nuevo (opcional)
+  changed_field TEXT, -- Campo específico que cambió (ej: 'payment_status')
+  triggered_by TEXT NOT NULL, -- 'mercadopago_webhook', 'admin', 'user', 'system'
+  user_id UUID REFERENCES profiles(id) ON DELETE SET NULL, -- Usuario que causó el cambio (si aplica)
+  metadata JSONB, -- Información adicional (opcional)
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Índices para audit_logs
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_triggered_by ON audit_logs(triggered_by);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id) WHERE user_id IS NOT NULL;
+
+-- ============================================
+-- 3. Políticas RLS para webhook_logs
+-- ============================================
+
+ALTER TABLE webhook_logs ENABLE ROW LEVEL SECURITY;
+
+-- Solo admins pueden ver logs de webhooks (datos sensibles)
+DROP POLICY IF EXISTS "Admins can view webhook logs" ON webhook_logs;
+CREATE POLICY "Admins can view webhook logs"
+  ON webhook_logs FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- El webhook puede insertar logs (sin autenticación, pero validado por el código)
+DROP POLICY IF EXISTS "Webhook can insert logs" ON webhook_logs;
+CREATE POLICY "Webhook can insert logs"
+  ON webhook_logs FOR INSERT
+  WITH CHECK (true);
+
+-- Solo admins pueden actualizar logs
+DROP POLICY IF EXISTS "Admins can update webhook logs" ON webhook_logs;
+CREATE POLICY "Admins can update webhook logs"
+  ON webhook_logs FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- ============================================
+-- 4. Políticas RLS para audit_logs
+-- ============================================
+
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+
+-- Solo admins pueden ver logs de auditoría (datos sensibles)
+DROP POLICY IF EXISTS "Admins can view audit logs" ON audit_logs;
+CREATE POLICY "Admins can view audit logs"
+  ON audit_logs FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- El sistema puede insertar logs (webhook, procesos internos)
+DROP POLICY IF EXISTS "System can insert audit logs" ON audit_logs;
+CREATE POLICY "System can insert audit logs"
+  ON audit_logs FOR INSERT
+  WITH CHECK (true);
+
+-- Solo admins pueden actualizar logs (por si hay que corregir algo)
+DROP POLICY IF EXISTS "Admins can update audit logs" ON audit_logs;
+CREATE POLICY "Admins can update audit logs"
+  ON audit_logs FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- ============================================
+-- NOTAS IMPORTANTES
+-- ============================================
+--
+-- 1. webhook_logs tiene UNIQUE constraint en payment_id para garantizar idempotencia
+-- 2. Ambas tablas tienen RLS habilitado, solo admins pueden ver
+-- 3. El webhook puede insertar en ambas tablas (WITH CHECK (true))
+-- 4. Los índices mejoran el rendimiento de consultas
+-- 5. Las tablas se relacionan con purchases para mantener integridad
+--
+-- ============================================
+```
+
+---
+
+## 🎯 Resumen de Problemas
+
+1. **Webhook recibe UUIDs** en lugar de payment_id numéricos → Error 404 "Payment not found"
+2. **Cliente de Supabase usa `anon` key** → No tiene permisos para insertar en `webhook_logs` → Error RLS 42501
+3. **Idempotencia falla** porque no puede leer/insertar en `webhook_logs`
+4. **Lógica compleja de UUIDs** (líneas 85-158) que no funciona correctamente
+
+---
+
+## 💡 Soluciones Propuestas
+
+1. **Usar `SUPABASE_SERVICE_ROLE_KEY`** en el webhook (bypass RLS)
+2. **Simplificar parsing** del webhook (remover lógica compleja de UUIDs)
+3. **Idempotencia simple** verificando en `purchases` en lugar de `webhook_logs`
+4. **Mantener funcionalidad** que funcionaba antes (actualizar pagos, crear tickets)
+
+---
+
+**Fecha:** 15 de marzo de 2026  
+**Prioridad:** 🔴 CRÍTICA - Sistema completamente roto en producción
