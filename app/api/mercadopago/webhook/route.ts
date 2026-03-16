@@ -12,32 +12,56 @@ import { calculateFinancialBreakdown } from '@/lib/utils/pricing'
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    // Mercado Pago puede enviar webhooks de dos formas:
+    // 1. Como JSON en el body: { type: 'payment', data: { id: '...' } }
+    // 2. Como query parameters: ?data.id=...&type=payment
+    let type: string | undefined
+    let data: any | undefined
+    let paymentId: string | undefined
     
-    // Mercado Pago puede enviar diferentes tipos de notificaciones
-    const { type, data } = body
-
-    console.log('📥 Webhook recibido de Mercado Pago:', { type, data })
-
-    // Si es una notificación de pago
-    if (type === 'payment') {
-      const paymentId = data?.id
-      
-      if (!paymentId) {
-        return NextResponse.json({ error: 'Payment ID no encontrado' }, { status: 400 })
+    // Leer el body como texto primero (solo se puede leer una vez)
+    const bodyText = await request.text()
+    
+    // Intentar parsear como JSON
+    try {
+      const body = JSON.parse(bodyText)
+      type = body?.type
+      data = body?.data
+      paymentId = data?.id?.toString() || body?.id?.toString() || body?.payment_id?.toString()
+    } catch (error) {
+      // Si no es JSON válido, el body puede estar vacío o en otro formato
+      console.log('⚠️ Body no es JSON válido, intentando leer de query params')
+    }
+    
+    // Si no tenemos payment_id del body, intentar de query params
+    if (!paymentId) {
+      const { searchParams } = new URL(request.url)
+      type = type || searchParams.get('type') || undefined
+      paymentId = searchParams.get('data.id') || searchParams.get('id') || undefined
+      if (paymentId && !data) {
+        data = { id: paymentId }
       }
+    }
 
-      // Obtener información del pago desde Mercado Pago
-      // Nota: En producción, deberías validar la firma del webhook para seguridad
-      const mpAccessToken = process.env.MERCADOPAGO_ACCESS_TOKEN
-      
-      if (!mpAccessToken) {
-        console.error('⚠️ MERCADOPAGO_ACCESS_TOKEN no configurado')
-        return NextResponse.json({ error: 'Configuración faltante' }, { status: 500 })
-      }
+    console.log('📥 Webhook recibido de Mercado Pago:', { type, data, paymentId, bodyText: bodyText.substring(0, 200) })
+    
+    if (!paymentId) {
+      console.error('⚠️ Payment ID no encontrado en webhook. Body:', bodyText.substring(0, 500))
+      // Retornar 200 para que Mercado Pago no reintente indefinidamente
+      return NextResponse.json({ error: 'Payment ID no encontrado' }, { status: 200 })
+    }
 
-      // Consultar el pago en Mercado Pago
-      const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+    // Obtener información del pago desde Mercado Pago
+    // Nota: En producción, deberías validar la firma del webhook para seguridad
+    const mpAccessToken = process.env.MERCADOPAGO_ACCESS_TOKEN
+    
+    if (!mpAccessToken) {
+      console.error('⚠️ MERCADOPAGO_ACCESS_TOKEN no configurado')
+      return NextResponse.json({ error: 'Configuración faltante' }, { status: 500 })
+    }
+
+    // Consultar el pago en Mercado Pago
+    const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
         headers: {
           'Authorization': `Bearer ${mpAccessToken}`,
           'Content-Type': 'application/json',
