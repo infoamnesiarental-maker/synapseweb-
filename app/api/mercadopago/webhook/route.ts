@@ -571,8 +571,7 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json({ success: true, purchaseId, status: paymentStatus })
-    }
-
+    
     // Si es otro tipo de notificación, solo confirmamos recepción
     return NextResponse.json({ success: true, message: 'Notificación recibida' })
   } catch (error: any) {
