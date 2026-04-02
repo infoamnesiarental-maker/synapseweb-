@@ -74,6 +74,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Ignorar notificaciones que no son de tipo 'payment'
+    if (type && type !== 'payment') {
+      console.log(`ℹ️ Notificación ignorada (tipo: ${type}), solo procesamos pagos`)
+      return NextResponse.json({ success: true, message: 'Notificación recibida' })
+    }
+
     console.log('📥 Webhook recibido de Mercado Pago:', { type, data, paymentId, bodyText: bodyText.substring(0, 200) })
     
     if (!paymentId) {
@@ -373,7 +379,7 @@ export async function POST(request: NextRequest) {
         .insert({
           payment_id: finalPaymentId,
           purchase_id: purchaseId,
-          webhook_type: type,
+          webhook_type: type || 'payment',
           payment_status: paymentStatus,
           webhook_data: payment,
         })
