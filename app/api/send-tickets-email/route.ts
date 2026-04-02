@@ -240,8 +240,13 @@ export async function POST(request: NextRequest) {
     console.log('📧 [SEND-EMAIL] Enviando email a:', recipientEmail)
     
     // Enviar email (sin PDF adjunto - el usuario puede descargarlo desde Mis Compras)
+    // Producción: Resend exige un "from" de dominio verificado en el panel.
+    // onboarding@resend.dev solo sirve para pruebas (suele limitar el "to" al mail de la cuenta).
+    const fromAddress =
+      process.env.RESEND_FROM_EMAIL?.trim() || 'Synapse <onboarding@resend.dev>'
+
     const { data, error } = await resend.emails.send({
-      from: 'Synapse <onboarding@resend.dev>', // Para desarrollo. Cambiar por tu dominio en producción
+      from: fromAddress,
       to: recipientEmail,
       subject: `Tus Entradas - ${event.name}${isDevelopment ? ' [TESTING]' : ''}`,
       html: finalEmailHtml,
