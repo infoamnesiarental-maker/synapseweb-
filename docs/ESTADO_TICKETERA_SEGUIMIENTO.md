@@ -140,7 +140,7 @@ Pasamos todo a `🟢` cuando se cumpla:
 
 | # | Tarea | Estado |
 |---|--------|--------|
-| 1 | Subir a git y desplegar los cambios pendientes del webhook (filtro `type !== payment`, `webhook_type` fallback), si aun no estan en produccion | [ ] |
+| 1 | Subir a git y desplegar los cambios pendientes del webhook (filtro `type !== payment`, `webhook_type` fallback), si aun no estan en produccion | [x] `🟢` 2026-04-02 |
 | 2 | En Vercel/hosting: verificar que existan y sean correctas `MERCADOPAGO_ACCESS_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_APP_URL`, `RESEND_API_KEY` | [ ] |
 
 ### Bloque A — Webhook y pagos (produccion)

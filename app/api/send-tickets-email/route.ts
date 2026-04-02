@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server-admin'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale/es'
 
@@ -42,9 +42,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Obtener datos de la compra desde Supabase
+    // Service role: este endpoint se llama desde el webhook / check-payment sin cookies de usuario.
+    // El cliente con anon + RLS no puede leer `purchases` en ese contexto.
     console.log('📧 [SEND-EMAIL] Obteniendo compra desde Supabase...')
-    const supabase = await createClient()
+    const supabase = createAdminClient()
     
     const { data: purchase, error: purchaseError } = await supabase
       .from('purchases')
